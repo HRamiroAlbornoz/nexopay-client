@@ -17,7 +17,7 @@ export default function Dashboard() {
 
   return (
     <main>
-      <h1>Bienvenido, {user?.first_name}</h1>
+      <h1>Bienvenido, {user?.full_name}</h1>
       <button type="button" onClick={handleLogout}>
         Cerrar sesión
       </button>

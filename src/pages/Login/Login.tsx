@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '../../hooks/useAuth';
 import { loginUser } from '../../api-calls/auth/auth.post';
 
 const loginSchema = z.object({
-  email: z.string().email('Ingresá un email válido'),
+  email: z.email('Ingresá un email válido'),
   password: z.string().min(1, 'La contraseña es requerida'),
 });
 
@@ -22,7 +22,7 @@ export default function Login() {
   const [serverError, setServerError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     setFieldErrors({});
     setServerError('');
@@ -42,8 +42,8 @@ export default function Login() {
 
     setStatus('loading');
     try {
-      const user = await loginUser({ email, password });
-      login(user);
+      const { token, user } = await loginUser({ email, password });
+      login(token, user);
       navigate('/dashboard', { replace: true });
     } catch (error) {
       setStatus('error');

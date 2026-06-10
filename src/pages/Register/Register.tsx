@@ -1,13 +1,12 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '../../hooks/useAuth';
 import { registerUser } from '../../api-calls/auth/auth.post';
 
 const registerSchema = z.object({
-  first_name: z.string().min(1, 'El nombre es requerido'),
-  last_name: z.string().min(1, 'El apellido es requerido'),
-  email: z.string().email('Ingresá un email válido'),
+  full_name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
+  email: z.email('Ingresá un email válido'),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
   confirm_password: z.string(),
 }).refine((data) => data.password === data.confirm_password, {
@@ -16,14 +15,13 @@ const registerSchema = z.object({
 });
 
 type FormStatus = 'idle' | 'loading' | 'error';
-type FieldErrors = Partial<Record<'first_name' | 'last_name' | 'email' | 'password' | 'confirm_password', string>>;
+type FieldErrors = Partial<Record<'full_name' | 'email' | 'password' | 'confirm_password', string>>;
 
 export default function Register() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -31,14 +29,13 @@ export default function Register() {
   const [serverError, setServerError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     setFieldErrors({});
     setServerError('');
 
     const result = registerSchema.safeParse({
-      first_name: firstName,
-      last_name: lastName,
+      full_name: fullName,
       email,
       password,
       confirm_password: confirmPassword,
@@ -49,8 +46,7 @@ export default function Register() {
       for (const issue of result.error.issues) {
         const field = issue.path[0];
         if (
-          field === 'first_name' ||
-          field === 'last_name' ||
+          field === 'full_name' ||
           field === 'email' ||
           field === 'password' ||
           field === 'confirm_password'
@@ -64,13 +60,12 @@ export default function Register() {
 
     setStatus('loading');
     try {
-      const user = await registerUser({
-        first_name: firstName,
-        last_name: lastName,
+      const { token, user } = await registerUser({
+        full_name: fullName,
         email,
         password,
       });
-      login(user);
+      login(token, user);
       navigate('/dashboard', { replace: true });
     } catch (error) {
       setStatus('error');
@@ -83,32 +78,17 @@ export default function Register() {
       <h1>Crear cuenta</h1>
       <form onSubmit={handleSubmit} noValidate>
         <div>
-          <label htmlFor="first_name">Nombre</label>
+          <label htmlFor="full_name">Nombre completo</label>
           <input
-            id="first_name"
+            id="full_name"
             type="text"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            aria-describedby={fieldErrors.first_name ? 'first-name-error' : undefined}
-            autoComplete="given-name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            aria-describedby={fieldErrors.full_name ? 'full-name-error' : undefined}
+            autoComplete="name"
           />
-          {fieldErrors.first_name && (
-            <span id="first-name-error" role="alert">{fieldErrors.first_name}</span>
-          )}
-        </div>
-
-        <div>
-          <label htmlFor="last_name">Apellido</label>
-          <input
-            id="last_name"
-            type="text"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            aria-describedby={fieldErrors.last_name ? 'last-name-error' : undefined}
-            autoComplete="family-name"
-          />
-          {fieldErrors.last_name && (
-            <span id="last-name-error" role="alert">{fieldErrors.last_name}</span>
+          {fieldErrors.full_name && (
+            <span id="full-name-error" role="alert">{fieldErrors.full_name}</span>
           )}
         </div>
 
