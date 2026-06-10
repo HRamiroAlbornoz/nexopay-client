@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const TOKEN_KEY = 'nexopay_token';
 
 export const userSchema = z.object({
-  id: z.number(),
+  id: z.string().uuid(),
   email: z.email(),
   full_name: z.string(),
 });
