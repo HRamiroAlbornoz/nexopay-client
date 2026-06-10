@@ -1,9 +1,13 @@
 import { z } from 'zod';
-import { userSchema, type User } from '../../context/AuthContext';
+import { userSchema, TOKEN_KEY, type User } from '../../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-const authResponseSchema = z.object({ user: userSchema });
+const authResponseSchema = z.object({
+  token: z.string(),
+  user: userSchema,
+});
+
 const errorResponseSchema = z.object({ message: z.string() });
 
 interface LoginInput {
@@ -14,8 +18,12 @@ interface LoginInput {
 interface RegisterInput {
   email: string;
   password: string;
-  first_name: string;
-  last_name: string;
+  full_name: string;
+}
+
+interface AuthResult {
+  token: string;
+  user: User;
 }
 
 function extractErrorMessage(raw: unknown, fallback: string): string {
@@ -23,11 +31,10 @@ function extractErrorMessage(raw: unknown, fallback: string): string {
   return parsed.success ? parsed.data.message : fallback;
 }
 
-export async function loginUser(input: LoginInput): Promise<User> {
+export async function loginUser(input: LoginInput): Promise<AuthResult> {
   const response = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(input),
   });
 
@@ -42,14 +49,13 @@ export async function loginUser(input: LoginInput): Promise<User> {
     throw new Error('Respuesta inesperada del servidor');
   }
 
-  return parsed.data.user;
+  return parsed.data;
 }
 
-export async function registerUser(input: RegisterInput): Promise<User> {
+export async function registerUser(input: RegisterInput): Promise<AuthResult> {
   const response = await fetch(`${API_URL}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify(input),
   });
 
@@ -64,12 +70,13 @@ export async function registerUser(input: RegisterInput): Promise<User> {
     throw new Error('Respuesta inesperada del servidor');
   }
 
-  return parsed.data.user;
+  return parsed.data;
 }
 
 export async function logoutUser(): Promise<void> {
+  const token = sessionStorage.getItem(TOKEN_KEY);
   await fetch(`${API_URL}/auth/logout`, {
     method: 'POST',
-    credentials: 'include',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
 }
