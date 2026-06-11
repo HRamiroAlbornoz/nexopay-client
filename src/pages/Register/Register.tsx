@@ -3,9 +3,11 @@ import { useNavigate, Link } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '../../hooks/useAuth';
 import { registerUser } from '../../api-calls/auth/auth.post';
+import { mapZodIssuesToFieldErrors } from '../../lib/form-utils';
 
 const registerSchema = z.object({
-  full_name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
+  first_name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
+  last_name: z.string().min(2, 'El apellido debe tener al menos 2 caracteres'),
   email: z.email('Ingresá un email válido'),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
   confirm_password: z.string(),
@@ -14,14 +16,16 @@ const registerSchema = z.object({
   path: ['confirm_password'],
 });
 
-type FormStatus = 'idle' | 'loading' | 'error';
-type FieldErrors = Partial<Record<'full_name' | 'email' | 'password' | 'confirm_password', string>>;
+const REGISTER_FIELDS = ['first_name', 'last_name', 'email', 'password', 'confirm_password'] as const;
+type FieldErrors = Partial<Record<typeof REGISTER_FIELDS[number], string>>;
+type FormStatus = 'idle' | 'loading';
 
 export default function Register() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -35,41 +39,32 @@ export default function Register() {
     setServerError('');
 
     const result = registerSchema.safeParse({
-      full_name: fullName,
+      first_name: firstName,
+      last_name: lastName,
       email,
       password,
       confirm_password: confirmPassword,
     });
 
     if (!result.success) {
-      const errors: FieldErrors = {};
-      for (const issue of result.error.issues) {
-        const field = issue.path[0];
-        if (
-          field === 'full_name' ||
-          field === 'email' ||
-          field === 'password' ||
-          field === 'confirm_password'
-        ) {
-          errors[field] = issue.message;
-        }
-      }
-      setFieldErrors(errors);
+      setFieldErrors(mapZodIssuesToFieldErrors(result.error.issues, REGISTER_FIELDS));
       return;
     }
 
     setStatus('loading');
     try {
-      const { token, user } = await registerUser({
-        full_name: fullName,
+      const user = await registerUser({
+        first_name: firstName,
+        last_name: lastName,
         email,
         password,
       });
-      login(token, user);
+      login(user);
       navigate('/dashboard', { replace: true });
     } catch (error) {
-      setStatus('error');
       setServerError(error instanceof Error ? error.message : 'Error al registrarse');
+    } finally {
+      setStatus('idle');
     }
   }
 
@@ -78,17 +73,32 @@ export default function Register() {
       <h1>Crear cuenta</h1>
       <form onSubmit={handleSubmit} noValidate>
         <div>
-          <label htmlFor="full_name">Nombre completo</label>
+          <label htmlFor="first_name">Nombre</label>
           <input
-            id="full_name"
+            id="first_name"
             type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            aria-describedby={fieldErrors.full_name ? 'full-name-error' : undefined}
-            autoComplete="name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            aria-describedby={fieldErrors.first_name ? 'first-name-error' : undefined}
+            autoComplete="given-name"
           />
-          {fieldErrors.full_name && (
-            <span id="full-name-error" role="alert">{fieldErrors.full_name}</span>
+          {fieldErrors.first_name && (
+            <span id="first-name-error" role="alert">{fieldErrors.first_name}</span>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="last_name">Apellido</label>
+          <input
+            id="last_name"
+            type="text"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            aria-describedby={fieldErrors.last_name ? 'last-name-error' : undefined}
+            autoComplete="family-name"
+          />
+          {fieldErrors.last_name && (
+            <span id="last-name-error" role="alert">{fieldErrors.last_name}</span>
           )}
         </div>
 
@@ -137,7 +147,7 @@ export default function Register() {
           )}
         </div>
 
-        {status === 'error' && (
+        {serverError && (
           <div aria-live="polite" role="alert">
             {serverError}
           </div>

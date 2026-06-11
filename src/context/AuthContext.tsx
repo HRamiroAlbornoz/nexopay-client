@@ -1,12 +1,14 @@
 import { createContext, useState, useEffect, type ReactNode } from 'react';
 import { z } from 'zod';
+import { API_BASE_URL } from '../lib/apiConfig';
 
-export const TOKEN_KEY = 'nexopay_token';
+const SESSION_HINT_KEY = 'nexopay_session';
 
 export const userSchema = z.object({
   id: z.string().uuid(),
   email: z.email(),
-  full_name: z.string(),
+  first_name: z.string(),
+  last_name: z.string(),
 });
 
 export type User = z.infer<typeof userSchema>;
@@ -15,9 +17,8 @@ type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
 export interface AuthContextValue {
   user: User | null;
-  token: string | null;
   status: AuthStatus;
-  login: (token: string, user: User) => void;
+  login: (user: User) => void;
   logout: () => void;
 }
 
@@ -25,13 +26,11 @@ export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
 
   useEffect(() => {
-    const storedToken = sessionStorage.getItem(TOKEN_KEY);
-
-    if (!storedToken) {
+    // Si no hay pista de sesión en localStorage, el usuario definitivamente no está logueado
+    if (!localStorage.getItem(SESSION_HINT_KEY)) {
       setStatus('unauthenticated');
       return;
     }
@@ -40,13 +39,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function checkSession(): Promise<void> {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
-          headers: { Authorization: `Bearer ${storedToken}` },
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+          credentials: 'include',
           signal: controller.signal,
         });
 
         if (!response.ok) {
-          sessionStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(SESSION_HINT_KEY);
           setStatus('unauthenticated');
           return;
         }
@@ -55,16 +54,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parsed = userSchema.safeParse(raw);
 
         if (parsed.success) {
-          setToken(storedToken);
           setUser(parsed.data);
           setStatus('authenticated');
         } else {
-          sessionStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(SESSION_HINT_KEY);
           setStatus('unauthenticated');
         }
       } catch (error) {
         if (error instanceof Error && error.name !== 'AbortError') {
-          sessionStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(SESSION_HINT_KEY);
           setStatus('unauthenticated');
         }
       }
@@ -74,22 +72,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, []);
 
-  function login(newToken: string, newUser: User): void {
-    sessionStorage.setItem(TOKEN_KEY, newToken);
-    setToken(newToken);
+  function login(newUser: User): void {
+    localStorage.setItem(SESSION_HINT_KEY, '1');
     setUser(newUser);
     setStatus('authenticated');
   }
 
   function logout(): void {
-    sessionStorage.removeItem(TOKEN_KEY);
-    setToken(null);
+    localStorage.removeItem(SESSION_HINT_KEY);
     setUser(null);
     setStatus('unauthenticated');
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, status, login, logout }}>
+    <AuthContext.Provider value={{ user, status, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
