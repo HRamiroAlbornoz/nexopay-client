@@ -1,10 +1,8 @@
 import { z } from 'zod';
-import { userSchema, TOKEN_KEY, type User } from '../../context/AuthContext';
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { userSchema, type User } from '../../context/AuthContext';
+import { API_BASE_URL } from '../../lib/apiConfig';
 
 const authResponseSchema = z.object({
-  token: z.string(),
   user: userSchema,
 });
 
@@ -18,12 +16,8 @@ interface LoginInput {
 interface RegisterInput {
   email: string;
   password: string;
-  full_name: string;
-}
-
-interface AuthResult {
-  token: string;
-  user: User;
+  first_name: string;
+  last_name: string;
 }
 
 function extractErrorMessage(raw: unknown, fallback: string): string {
@@ -31,38 +25,26 @@ function extractErrorMessage(raw: unknown, fallback: string): string {
   return parsed.success ? parsed.data.message : fallback;
 }
 
-export async function loginUser(input: LoginInput): Promise<AuthResult> {
-  const response = await fetch(`${API_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  });
-
-  const raw: unknown = await response.json();
-
-  if (!response.ok) {
-    throw new Error(extractErrorMessage(raw, 'Credenciales inválidas'));
+async function safeParseJson(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
   }
-
-  const parsed = authResponseSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error('Respuesta inesperada del servidor');
-  }
-
-  return parsed.data;
 }
 
-export async function registerUser(input: RegisterInput): Promise<AuthResult> {
-  const response = await fetch(`${API_URL}/auth/register`, {
+async function postAuthEndpoint(path: string, body: unknown, errorFallback: string): Promise<User> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
+    credentials: 'include',
+    body: JSON.stringify(body),
   });
 
-  const raw: unknown = await response.json();
+  const raw = await safeParseJson(response);
 
   if (!response.ok) {
-    throw new Error(extractErrorMessage(raw, 'Error al registrarse'));
+    throw new Error(extractErrorMessage(raw, errorFallback));
   }
 
   const parsed = authResponseSchema.safeParse(raw);
@@ -70,13 +52,24 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
     throw new Error('Respuesta inesperada del servidor');
   }
 
-  return parsed.data;
+  return parsed.data.user;
+}
+
+export function loginUser(input: LoginInput): Promise<User> {
+  return postAuthEndpoint('/auth/login', input, 'Credenciales inválidas');
+}
+
+export function registerUser(input: RegisterInput): Promise<User> {
+  return postAuthEndpoint('/auth/register', input, 'Error al registrarse');
 }
 
 export async function logoutUser(): Promise<void> {
-  const token = sessionStorage.getItem(TOKEN_KEY);
-  await fetch(`${API_URL}/auth/logout`, {
+  const response = await fetch(`${API_BASE_URL}/auth/logout`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include',
   });
+
+  if (!response.ok) {
+    throw new Error('No se pudo cerrar sesión en el servidor');
+  }
 }

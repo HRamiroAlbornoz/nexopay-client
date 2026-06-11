@@ -3,14 +3,16 @@ import { useNavigate, Link } from 'react-router-dom';
 import { z } from 'zod';
 import { useAuth } from '../../hooks/useAuth';
 import { loginUser } from '../../api-calls/auth/auth.post';
+import { mapZodIssuesToFieldErrors } from '../../lib/form-utils';
 
 const loginSchema = z.object({
   email: z.email('Ingresá un email válido'),
   password: z.string().min(1, 'La contraseña es requerida'),
 });
 
-type FormStatus = 'idle' | 'loading' | 'error';
-type FieldErrors = Partial<Record<'email' | 'password', string>>;
+const LOGIN_FIELDS = ['email', 'password'] as const;
+type FieldErrors = Partial<Record<typeof LOGIN_FIELDS[number], string>>;
+type FormStatus = 'idle' | 'loading';
 
 export default function Login() {
   const { login } = useAuth();
@@ -29,25 +31,19 @@ export default function Login() {
 
     const result = loginSchema.safeParse({ email, password });
     if (!result.success) {
-      const errors: FieldErrors = {};
-      for (const issue of result.error.issues) {
-        const field = issue.path[0];
-        if (field === 'email' || field === 'password') {
-          errors[field] = issue.message;
-        }
-      }
-      setFieldErrors(errors);
+      setFieldErrors(mapZodIssuesToFieldErrors(result.error.issues, LOGIN_FIELDS));
       return;
     }
 
     setStatus('loading');
     try {
-      const { token, user } = await loginUser({ email, password });
-      login(token, user);
+      const user = await loginUser({ email, password });
+      login(user);
       navigate('/dashboard', { replace: true });
     } catch (error) {
-      setStatus('error');
       setServerError(error instanceof Error ? error.message : 'Error al iniciar sesión');
+    } finally {
+      setStatus('idle');
     }
   }
 
@@ -85,7 +81,7 @@ export default function Login() {
           )}
         </div>
 
-        {status === 'error' && (
+        {serverError && (
           <div aria-live="polite" role="alert">
             {serverError}
           </div>
