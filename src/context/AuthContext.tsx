@@ -6,9 +6,9 @@ const SESSION_HINT_KEY = 'nexopay_session';
 
 export const userSchema = z.object({
   id: z.string().uuid(),
-  email: z.email(),
+  email: z.string().email(),
   first_name: z.string(),
-  last_name: z.string(),
+  last_name: z.string().nullable().optional(),
 });
 
 export type User = z.infer<typeof userSchema>;
@@ -20,6 +20,8 @@ export interface AuthContextValue {
   status: AuthStatus;
   login: (user: User) => void;
   logout: () => void;
+  googleReady: boolean;
+  googleClientId: string | undefined;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -27,9 +29,35 @@ export const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
+  const [googleReady, setGoogleReady] = useState(false);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
+  // Load Google Identity Services script
   useEffect(() => {
-    // Si no hay pista de sesión en localStorage, el usuario definitivamente no está logueado
+    if (!googleClientId) return;
+
+    // Check if script is already present
+    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+    if (existing) {
+      if ((window as any).google?.accounts?.id) {
+        setGoogleReady(true);
+      } else {
+        existing.addEventListener('load', () => setGoogleReady(true), { once: true });
+      }
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setGoogleReady(true);
+    script.onerror = () => setGoogleReady(false);
+    document.head.appendChild(script);
+  }, [googleClientId]);
+
+  // Session check on mount
+  useEffect(() => {
     if (!localStorage.getItem(SESSION_HINT_KEY)) {
       setStatus('unauthenticated');
       return;
@@ -82,11 +110,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(SESSION_HINT_KEY);
     setUser(null);
     setStatus('unauthenticated');
+    if ((window as any).google?.accounts?.id) {
+      (window as any).google.accounts.id.disableAutoSelect();
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ user, status, login, logout }}>
+    <AuthContext.Provider value={{ user, status, login, logout, googleReady, googleClientId }}>
       {children}
     </AuthContext.Provider>
   );
 }
+

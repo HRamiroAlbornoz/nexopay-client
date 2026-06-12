@@ -8,6 +8,7 @@ import Transactions from '../pages/Transactions/Transactions';
 import SharedExpenses from '../pages/SharedExpenses/SharedExpenses';
 import SavingsGoals from '../pages/SavingsGoals/SavingsGoals';
 import PrivateRoute from '../components/PrivateRoute/PrivateRoute';
+import AppLayout from '../components/layout/AppLayout';
 
 const router = createBrowserRouter([
   { path: '/', element: <Landing /> },
@@ -16,11 +17,16 @@ const router = createBrowserRouter([
   {
     element: <PrivateRoute />,
     children: [
-      { path: '/dashboard', element: <Dashboard /> },
-      { path: '/wallet', element: <Wallet /> },
-      { path: '/transactions', element: <Transactions /> },
-      { path: '/shared-expenses', element: <SharedExpenses /> },
-      { path: '/savings-goals', element: <SavingsGoals /> },
+      {
+        element: <AppLayout />,
+        children: [
+          { path: '/dashboard', element: <Dashboard /> },
+          { path: '/wallet', element: <Wallet /> },
+          { path: '/transactions', element: <Transactions /> },
+          { path: '/shared-expenses', element: <SharedExpenses /> },
+          { path: '/savings-goals', element: <SavingsGoals /> },
+        ],
+      },
     ],
   },
 ]);
