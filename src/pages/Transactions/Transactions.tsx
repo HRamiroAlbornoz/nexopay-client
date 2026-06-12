@@ -15,9 +15,9 @@ export default function Transactions() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
 
-  // IMPORTANT BACKEND TODO FOR HERNÁN ALBORNOZ:
-  // - Conversion backend integration needed: Implement endpoint `POST /api/transactions/exchange`
-  //   validating rates, subtracting `amount_from` and adding `amount_to` in user's balances.
+  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
+  // - Integración del backend para conversión: Implementar la ruta `POST /api/transactions/exchange`
+  //   que valide las tasas, reste de `amount_from` y sume `amount_to` en los balances del usuario.
 
   const totalLogs = transactions.length;
   const totalPages = Math.max(1, Math.ceil(totalLogs / pageSize));

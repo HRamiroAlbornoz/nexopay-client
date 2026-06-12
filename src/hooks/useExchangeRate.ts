@@ -12,9 +12,9 @@ export function useExchangeRate() {
   const [rates, setRates] = useState<CurrencyRate[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // IMPORTANT BACKEND TODO FOR HERNÁN ALBORNOZ:
-  // 1. Create a route `GET /api/rates` that calls Frankfurter API (already stubbed in nexopay-api/src/api-calls)
-  //    and returns live quotes for ARS, USD, and EUR.
+  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
+  // 1. Crear una ruta `GET /api/rates` que llame a Frankfurter API (que ya tiene su estructura en nexopay-api/src/api-calls)
+  //    y devuelva cotizaciones en tiempo real para ARS, USD y EUR.
 
   useEffect(() => {
     // Simulated live rates feed restricted only to active currencies: ARS, USD, EUR

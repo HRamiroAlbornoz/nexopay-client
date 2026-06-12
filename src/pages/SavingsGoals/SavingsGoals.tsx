@@ -10,9 +10,9 @@ export default function SavingsGoals() {
   const [targetDate, setTargetDate] = useState('');
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
 
-  // IMPORTANT BACKEND TODO FOR HERNÁN ALBORNOZ:
-  // - Savings Goals integration needed: Implement routes `GET /api/savings-goals` and `POST /api/savings-goals`
-  //   that insert/update values in the savings_goals PostgreSQL table.
+  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
+  // - Integración de metas de ahorro requerida: Implementar las rutas `GET /api/savings-goals` y `POST /api/savings-goals`
+  //   que inserten/actualicen los valores en la tabla `savings_goals` de PostgreSQL.
 
   const handleCreateGoal = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -23,9 +23,9 @@ export function useSharedExpenses() {
   const [expenses, setExpenses] = useState<SharedExpense[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // IMPORTANT BACKEND TODO FOR HERNÁN ALBORNOZ:
-  // 1. Create routes `GET /api/shared-expenses` and `POST /api/shared-expenses` connected to shared_expenses and shared_expense_members tables.
-  // 2. Create routes `POST /api/shared-expenses/:id/pay` to record member contributions.
+  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
+  // 1. Crear las rutas `GET /api/shared-expenses` y `POST /api/shared-expenses` conectadas con las tablas `shared_expenses` y `shared_expense_members`.
+  // 2. Crear las rutas `POST /api/shared-expenses/:id/pay` para registrar las contribuciones de los miembros.
 
   useEffect(() => {
     if (!user) return;

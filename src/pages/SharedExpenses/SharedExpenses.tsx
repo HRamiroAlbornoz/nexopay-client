@@ -12,9 +12,9 @@ export default function SharedExpenses() {
   const [teammateEmail, setTeammateEmail] = useState('hernan@nexopay.com');
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
 
-  // IMPORTANT BACKEND TODO FOR HERNÁN ALBORNOZ:
-  // - Shared Expenses integration needed: Implement routes `GET /api/shared-expenses` and `POST /api/shared-expenses`
-  //   that automatically insert records into shared_expenses and link members in shared_expense_members table.
+  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
+  // - Integración de gastos compartidos requerida: Implementar las rutas `GET /api/shared-expenses` y `POST /api/shared-expenses`
+  //   que inserten registros automáticamente en las tablas `shared_expenses` y `shared_expense_members`.
 
   const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault();

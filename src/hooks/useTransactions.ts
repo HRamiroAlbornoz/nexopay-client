@@ -18,14 +18,14 @@ export function useTransactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // IMPORTANT BACKEND TODO FOR HERNÁN ALBORNOZ:
-  // 1. Create a route `GET /api/transactions` that joins wallets and transactions to return the user's logs.
-  // 2. Create routes `POST /api/transactions/buy`, `POST /api/transactions/sell` and `/exchange` that:
-  //    - Validates inputs (sufficient balances).
-  //    - Performs the numeric conversions.
-  //    - Updates the balance in the balances table.
-  //    - Writes a new record in the transactions table.
-  //    - Returns the updated balance and transaction receipt.
+  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
+  // 1. Crear una ruta `GET /api/transactions` que una las billeteras y transacciones para retornar el historial del usuario.
+  // 2. Crear las rutas `POST /api/transactions/buy`, `POST /api/transactions/sell` y `/exchange` que:
+  //    - Validar las entradas (suficiente saldo).
+  //    - Realizar los cálculos numéricos.
+  //    - Actualizar la tabla de balances.
+  //    - Escribir un nuevo registro en la tabla de transacciones.
+  //    - Devolver el balance actualizado y el comprobante de transacción.
 
   useEffect(() => {
     if (!user) return;
@@ -88,7 +88,7 @@ export function useTransactions() {
   }, [user]);
 
   const addTransaction = async (tx: Omit<Transaction, 'id' | 'created_at'>) => {
-    // Propose backend request:
+    // Propuesta de petición al backend para cuando esté listo:
     // await fetch(`/api/transactions/${tx.type}`, { method: 'POST', body: JSON.stringify(tx) })
     
     const newTx: Transaction = {

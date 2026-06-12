@@ -18,11 +18,11 @@ export function useWallet() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // IMPORTANT BACKEND TODO FOR HERNÁN ALBORNOZ:
-  // 1. Create a route `GET /api/wallet` that checks req.user.id and returns or creates the user's wallet.
-  // 2. Create a route `GET /api/wallet/balances` that returns all active balances for the wallet.
-  // 3. Create a route `POST /api/wallet/balances/deposit` that takes { currency_code, amount } and increments the balance.
-  // 4. Protect all these routes using requireAuth middleware to prevent unauthorized balance manipulation.
+  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
+  // 1. Crear una ruta `GET /api/wallet` que verifique req.user.id y devuelva o cree la billetera del usuario.
+  // 2. Crear una ruta `GET /api/wallet/balances` que devuelva todos los saldos activos para la billetera.
+  // 3. Crear una ruta `POST /api/wallet/balances/deposit` que reciba { currency_code, amount } e incremente el saldo.
+  // 4. Proteger todas estas rutas con el middleware requireAuth para evitar manipulación de saldos no autorizada.
 
   useEffect(() => {
     if (!user) return;
@@ -47,7 +47,7 @@ export function useWallet() {
 
   const simulateDeposit = async (currency: 'ARS' | 'USD' | 'EUR', amount: number) => {
     setError('');
-    // Propose backend request in comments:
+    // Propuesta de petición al backend para cuando esté listo:
     // await fetch('/api/wallet/balances/deposit', { method: 'POST', body: JSON.stringify({ currency, amount }) })
     
     setWallet((prev) => {

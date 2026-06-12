@@ -16,9 +16,9 @@ export default function Dashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
-  // IMPORTANT BACKEND TODO FOR HERNÁN ALBORNOZ:
-  // - Verify S3 Upload Integration: The frontend is prepared to query `/api/get-presigned-url` to retrieve a presigned S3 url,
-  //   and then issue a PUT request directly to S3 bucket. Currently we are mocking it locally because the S3 route doesn't exist yet.
+  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
+  // - Integración de subida a S3: El frontend está preparado para consultar `/api/get-presigned-url` y obtener una URL firmada de S3,
+  //   y luego hacer un PUT directo al bucket de S3. Actualmente está simulado localmente porque la ruta en el backend no existe aún.
 
   // Calculate estimated values based on active currencies only (ARS, USD, EUR)
   const assetDetails = useMemo(() => {

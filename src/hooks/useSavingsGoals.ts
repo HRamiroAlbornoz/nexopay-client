@@ -16,9 +16,9 @@ export function useSavingsGoals() {
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // IMPORTANT BACKEND TODO FOR HERNÁN ALBORNOZ:
-  // 1. Create routes `GET /api/savings-goals` and `POST /api/savings-goals` connected to PostgreSQL table savings_goals.
-  // 2. Create routes `PATCH /api/savings-goals/:id` to update goals or add contributions.
+  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
+  // 1. Crear las rutas `GET /api/savings-goals` y `POST /api/savings-goals` vinculadas con la tabla postgres `savings_goals`.
+  // 2. Crear las rutas `PATCH /api/savings-goals/:id` para actualizar metas o registrar contribuciones.
 
   useEffect(() => {
     if (!user) return;

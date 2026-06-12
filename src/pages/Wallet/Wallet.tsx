@@ -9,9 +9,9 @@ export default function Wallet() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
-  // IMPORTANT BACKEND TODO FOR HERNÁN ALBORNOZ:
-  // - Transfer route needed: Implement route `POST /api/wallet/transfer` that takes { recipient_email, currency_code, amount },
-  //   verifies the sender has enough funds, subtracts from their balance, and adds to the recipient's balance.
+  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
+  // - Ruta de transferencia requerida: Implementar la ruta `POST /api/wallet/transfer` que reciba { recipient_email, currency_code, amount },
+  //   verifique que el emisor tenga fondos suficientes, reste de su saldo y sume al del destinatario.
 
   const handleTransfer = async (e: FormEvent) => {
     e.preventDefault();
