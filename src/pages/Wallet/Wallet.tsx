@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useWallet } from '../../hooks/useWallet';
 
 export default function Wallet() {
-  const { wallet } = useWallet();
+  const { wallet, setWallet } = useWallet();
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
   const [recipient, setRecipient] = useState('');
@@ -37,11 +37,14 @@ export default function Wallet() {
     setIsSubmitting(true);
     // Simulate transaction delay
     setTimeout(() => {
-      // Deduct funds locally
+      // Deduct funds locally (immutable update via setWallet)
       if (wallet) {
-        wallet.balances = wallet.balances.map((b) =>
-          b.currency_code === currency ? { ...b, amount: b.amount - transferAmount } : b
-        );
+        setWallet({
+          ...wallet,
+          balances: wallet.balances.map((b) =>
+            b.currency_code === currency ? { ...b, amount: b.amount - transferAmount } : b
+          ),
+        });
       }
       setAlert({
         message: `¡Transferencia de ${transferAmount} ${currency} enviada con éxito a ${recipient}!`,

@@ -4,7 +4,7 @@ import { useWallet } from '../../hooks/useWallet';
 
 export default function Transactions() {
   const { transactions, addTransaction } = useTransactions();
-  const { wallet } = useWallet();
+  const { wallet, setWallet } = useWallet();
 
   const [fromCurrency, setFromCurrency] = useState<'ARS' | 'USD' | 'EUR'>('ARS');
   const [toCurrency, setToCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
@@ -74,12 +74,15 @@ export default function Transactions() {
         exchange_rate: rate,
       });
 
-      // Update balances locally
+      // Update balances locally (immutable update via setWallet)
       if (wallet) {
-        wallet.balances = wallet.balances.map((b) => {
-          if (b.currency_code === fromCurrency) return { ...b, amount: b.amount - convertAmount };
-          if (b.currency_code === toCurrency) return { ...b, amount: b.amount + convertedVal };
-          return b;
+        setWallet({
+          ...wallet,
+          balances: wallet.balances.map((b) => {
+            if (b.currency_code === fromCurrency) return { ...b, amount: b.amount - convertAmount };
+            if (b.currency_code === toCurrency) return { ...b, amount: b.amount + convertedVal };
+            return b;
+          }),
         });
       }
 

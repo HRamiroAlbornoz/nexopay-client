@@ -76,19 +76,21 @@ export default function Landing() {
     (window as any).google.accounts.id.prompt();
   };
 
-  const handleDemoLogin = () => {
-    setAlert(null);
-    // Demo user payload matching the active database seed user
-    const demoUser = {
-      id: 'd8cae933-c80b-4a51-991d-795bcf54eb6d', // Will fallback to backend check
-      email: 'richard@nexopay.com',
-      first_name: 'Richard',
-      last_name: 'González',
-    };
-    login(demoUser);
-    setAlert({ message: 'Accediendo en modo demo local. Usa credenciales de la base de datos para pruebas reales.', type: 'info' });
-    navigate('/dashboard', { replace: true });
-  };
+  const handleDemoLogin = import.meta.env.DEV
+    ? () => {
+        setAlert(null);
+        // Demo user payload matching the active database seed user
+        const demoUser = {
+          id: 'd8cae933-c80b-4a51-991d-795bcf54eb6d', // Will fallback to backend check
+          email: 'richard@nexopay.com',
+          first_name: 'Richard',
+          last_name: 'González',
+        };
+        login(demoUser);
+        setAlert({ message: 'Accediendo en modo demo local. Usa credenciales de la base de datos para pruebas reales.', type: 'info' });
+        navigate('/dashboard', { replace: true });
+      }
+    : undefined;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -393,14 +395,16 @@ export default function Landing() {
               Google Identity One-Tap
             </button>
 
-            <button
-              type="button"
-              className="btn btn-ghost wide"
-              onClick={handleDemoLogin}
-              style={{ borderColor: 'rgba(0, 230, 118, 0.35)', color: '#00e676' }}
-            >
-              Acceso Demo Richard
-            </button>
+            {import.meta.env.DEV && handleDemoLogin && (
+              <button
+                type="button"
+                className="btn btn-ghost wide"
+                onClick={handleDemoLogin}
+                style={{ borderColor: 'rgba(0, 230, 118, 0.35)', color: '#00e676' }}
+              >
+                Acceso Demo Richard
+              </button>
+            )}
 
             {activeTab === 'login' ? (
               <div style={{ textAlign: 'center', marginTop: '12px' }}>

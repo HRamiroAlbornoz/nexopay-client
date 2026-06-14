@@ -62,5 +62,5 @@ export function useWallet() {
     return true;
   };
 
-  return { wallet, loading, error, simulateDeposit };
+  return { wallet, setWallet, loading, error, simulateDeposit };
 }
