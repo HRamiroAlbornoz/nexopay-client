@@ -1,13 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom';
-import Landing from '../pages/Landing/Landing';
-import Login from '../pages/Login/Login';
-import Register from '../pages/Register/Register';
-import Dashboard from '../pages/Dashboard/Dashboard';
-import Wallet from '../pages/Wallet/Wallet';
-import Transactions from '../pages/Transactions/Transactions';
-import SharedExpenses from '../pages/SharedExpenses/SharedExpenses';
-import SavingsGoals from '../pages/SavingsGoals/SavingsGoals';
-import PrivateRoute from '../components/PrivateRoute/PrivateRoute';
+import { Landing, Login, Register, Dashboard, Wallet, Transactions, SharedExpenses, SavingsGoals } from '../pages';
+import { PrivateRoute, AppLayout } from '../components';
 
 const router = createBrowserRouter([
   { path: '/', element: <Landing /> },
@@ -16,11 +9,16 @@ const router = createBrowserRouter([
   {
     element: <PrivateRoute />,
     children: [
-      { path: '/dashboard', element: <Dashboard /> },
-      { path: '/wallet', element: <Wallet /> },
-      { path: '/transactions', element: <Transactions /> },
-      { path: '/shared-expenses', element: <SharedExpenses /> },
-      { path: '/savings-goals', element: <SavingsGoals /> },
+      {
+        element: <AppLayout />,
+        children: [
+          { path: '/dashboard', element: <Dashboard /> },
+          { path: '/wallet', element: <Wallet /> },
+          { path: '/transactions', element: <Transactions /> },
+          { path: '/shared-expenses', element: <SharedExpenses /> },
+          { path: '/savings-goals', element: <SavingsGoals /> },
+        ],
+      },
     ],
   },
 ]);
