@@ -1,17 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './useAuth';
+import type { Transaction, CreateTransactionPayload } from '../types/transaction.types';
 
-export interface Transaction {
-  id: string;
-  type: 'buy' | 'sell' | 'exchange' | 'transfer_in' | 'transfer_out';
-  currency_from: 'ARS' | 'USD' | 'EUR';
-  currency_to: 'ARS' | 'USD' | 'EUR';
-  amount_from: number;
-  amount_to: number;
-  exchange_rate: number;
-  created_at: string;
-  desc?: string;
-}
+// Re-export for backward compatibility
+export type { Transaction };
 
 export function useTransactions() {
   const { user } = useAuth();
@@ -20,18 +12,11 @@ export function useTransactions() {
 
   // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
   // 1. Crear una ruta `GET /api/transactions` que una las billeteras y transacciones para retornar el historial del usuario.
-  // 2. Crear las rutas `POST /api/transactions/buy`, `POST /api/transactions/sell` y `/exchange` que:
-  //    - Validar las entradas (suficiente saldo).
-  //    - Realizar los cálculos numéricos.
-  //    - Actualizar la tabla de balances.
-  //    - Escribir un nuevo registro en la tabla de transacciones.
-  //    - Devolver el balance actualizado y el comprobante de transacción.
+  // 2. Crear las rutas `POST /api/transactions/buy`, `POST /api/transactions/sell` y `/exchange`.
 
   useEffect(() => {
     if (!user) return;
 
-    // Simulate fetching transaction history from PostgreSQL backend
-    // Only active currencies are ARS, USD, and EUR as specified in seeds.
     const timer = setTimeout(() => {
       const mockLogs: Transaction[] = [
         {
@@ -87,17 +72,15 @@ export function useTransactions() {
     return () => clearTimeout(timer);
   }, [user]);
 
-  const addTransaction = async (tx: Omit<Transaction, 'id' | 'created_at'>) => {
-    // Propuesta de petición al backend para cuando esté listo:
-    // await fetch(`/api/transactions/${tx.type}`, { method: 'POST', body: JSON.stringify(tx) })
-    
+  const addTransaction = async (tx: CreateTransactionPayload) => {
     const newTx: Transaction = {
       ...tx,
       id: Math.random().toString(36).substring(7),
       created_at: new Date().toISOString(),
-      desc: tx.type === 'buy' ? `Compra de ${tx.currency_to} con saldo ${tx.currency_from}` :
-            tx.type === 'sell' ? `Venta de ${tx.currency_from} a saldo ${tx.currency_to}` :
-            `Conversión de saldo ${tx.currency_from} a ${tx.currency_to}`,
+      desc: tx.type === 'buy'      ? `Compra de ${tx.currency_to} con saldo ${tx.currency_from}` :
+            tx.type === 'sell'     ? `Venta de ${tx.currency_from} a saldo ${tx.currency_to}` :
+            tx.type === 'exchange' ? `Conversión de saldo ${tx.currency_from} a ${tx.currency_to}` :
+            tx.type === 'transfer_out' ? `Transferencia enviada` : `Transferencia recibida`,
     };
 
     setTransactions((prev) => [newTx, ...prev]);

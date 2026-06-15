@@ -3,6 +3,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useWallet } from '../../hooks/useWallet';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useExchangeRate } from '../../hooks/useExchangeRate';
+import BalanceChart, { type BalanceDataPoint } from '../../components/charts/BalanceChart/BalanceChart';
+import TransactionTimeline from '../../components/charts/TransactionTimeline/TransactionTimeline';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -16,11 +18,7 @@ export default function Dashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // - Integración de subida a S3: El frontend está preparado para consultar `/api/get-presigned-url` y obtener una URL firmada de S3,
-  //   y luego hacer un PUT directo al bucket de S3. Actualmente está simulado localmente porque la ruta en el backend no existe aún.
-
-  // Calculate estimated values based on active currencies only (ARS, USD, EUR)
+  // Valor estimado total de la cartera en USD
   const assetDetails = useMemo(() => {
     let total = 0;
     if (!wallet) return { list: [], totalUSD: 0 };
@@ -30,18 +28,42 @@ export default function Dashboard() {
       const priceInUSD = rateInfo ? rateInfo.current_price : 0;
       const valueUSD = balanceItem.amount * priceInUSD;
       total += valueUSD;
-      return {
-        symbol: balanceItem.currency_code,
-        balance: balanceItem.amount,
-        valueUSD,
-      };
+      return { symbol: balanceItem.currency_code, balance: balanceItem.amount, valueUSD };
     });
 
-    return {
-      list: list.sort((a, b) => b.valueUSD - a.valueUSD),
-      totalUSD: total,
-    };
+    return { list: list.sort((a, b) => b.valueUSD - a.valueUSD), totalUSD: total };
   }, [wallet, rates]);
+
+  // Genera datos históricos de balance simulados a partir de transacciones
+  const balanceChartData = useMemo((): BalanceDataPoint[] => {
+    if (!wallet) return [];
+
+    const now = new Date();
+    const points: BalanceDataPoint[] = [];
+    const currentBalances = { ARS: 0, USD: 0, EUR: 0 };
+
+    wallet.balances.forEach((b) => {
+      currentBalances[b.currency_code] = b.amount;
+    });
+
+    // Genera 7 puntos hacia atrás (semana)
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+
+      // Simulamos variación pequeña basada en transacciones de ese día
+      const factor = 1 - (i * 0.008);
+      points.push({
+        date: dateStr,
+        ARS: Math.round(currentBalances.ARS * factor),
+        USD: parseFloat((currentBalances.USD * factor).toFixed(2)),
+        EUR: parseFloat((currentBalances.EUR * factor).toFixed(2)),
+      });
+    }
+
+    return points;
+  }, [wallet]);
 
   const handleDepositSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -51,19 +73,16 @@ export default function Dashboard() {
       setAlert({ message: 'Ingresa un monto válido mayor a cero.', type: 'warning' });
       return;
     }
-
     const success = await simulateDeposit(depSymbol, amount);
     if (success) {
-      // Add transaction log
       await addTransaction({
         type: 'buy',
-        currency_from: 'ARS', // assumed conversion source
+        currency_from: 'ARS',
         currency_to: depSymbol,
         amount_from: depSymbol === 'ARS' ? amount : amount * 900,
         amount_to: amount,
         exchange_rate: depSymbol === 'ARS' ? 1.0 : depSymbol === 'EUR' ? 1.0854 : 1.0,
       });
-
       setDepAmount('');
       setAlert({ message: `¡Ingreso de ${amount} ${depSymbol} registrado con éxito!`, type: 'success' });
     }
@@ -72,18 +91,12 @@ export default function Dashboard() {
   const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     setAlert(null);
     setIsUploading(true);
     setDocumentStatus('Subiendo');
-
-    // Simulate S3 Presigned URL upload
     setTimeout(() => {
       setDocumentStatus('Guardado local');
-      setAlert({
-        message: 'Simulación: Documento cargado localmente. Hernán debe habilitar /api/get-presigned-url en backend.',
-        type: 'success',
-      });
+      setAlert({ message: 'Simulación: Documento cargado localmente. Hernán debe habilitar /api/get-presigned-url.', type: 'success' });
       setIsUploading(false);
       event.target.value = '';
     }, 1200);
@@ -106,14 +119,13 @@ export default function Dashboard() {
             <span className="toast-title" style={{ fontSize: '10px' }}>
               {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : 'Advertencia'}
             </span>
-            <span className="toast-message" style={{ fontSize: '12px' }}>
-              {alert.message}
-            </span>
+            <span className="toast-message" style={{ fontSize: '12px' }}>{alert.message}</span>
           </div>
           <button type="button" className="toast-close" onClick={() => setAlert(null)}>&times;</button>
         </div>
       )}
 
+      {/* Stats */}
       <div className="dashboard-grid">
         <div className="dashboard-stat-card">
           <div className="stat-label">Valor estimado</div>
@@ -133,6 +145,18 @@ export default function Dashboard() {
             {documentStatus}
           </div>
           <div className="small">Identidad y origen de fondos</div>
+        </div>
+      </div>
+
+      {/* Charts */}
+      <div className="dashboard-content-split" style={{ marginBottom: 20 }}>
+        <div className="dashboard-sub-panel">
+          <div className="dashboard-section-title">Evolución de Balances (7 días)</div>
+          <BalanceChart data={balanceChartData} />
+        </div>
+        <div className="dashboard-sub-panel">
+          <div className="dashboard-section-title">Timeline de Transacciones</div>
+          <TransactionTimeline transactions={transactions} />
         </div>
       </div>
 
@@ -163,12 +187,8 @@ export default function Dashboard() {
           <div className="dashboard-section-title">Ingresar Fondos</div>
           <form className="deposit-form" onSubmit={handleDepositSubmit}>
             <div className="form-group">
-              <label>Divisa / Cripto activa</label>
-              <select
-                className="form-select"
-                value={depSymbol}
-                onChange={(e) => setDepSymbol(e.target.value as 'ARS' | 'USD' | 'EUR')}
-              >
+              <label>Divisa activa</label>
+              <select className="form-select" value={depSymbol} onChange={(e) => setDepSymbol(e.target.value as 'ARS' | 'USD' | 'EUR')}>
                 <option value="USD">USD - Dólar Estadounidense</option>
                 <option value="EUR">EUR - Euro</option>
                 <option value="ARS">ARS - Peso Argentino</option>
@@ -177,14 +197,9 @@ export default function Dashboard() {
             <div className="form-group">
               <label>Monto</label>
               <input
-                type="number"
-                placeholder="0.00"
-                value={depAmount}
+                type="number" placeholder="0.00" value={depAmount}
                 onChange={(e) => setDepAmount(e.target.value)}
-                className="neon-input"
-                min="0"
-                step="any"
-                required
+                className="neon-input" min="0" step="any" required
               />
             </div>
             <button type="submit" className="btn btn-primary wide" style={{ marginTop: '10px' }}>
@@ -195,7 +210,7 @@ export default function Dashboard() {
       </div>
 
       <div className="dashboard-content-split">
-        {/* Transactions List */}
+        {/* Recent transactions */}
         <div className="dashboard-sub-panel">
           <div className="dashboard-section-title">Historial Reciente</div>
           <div className="log-table-container">
@@ -215,11 +230,11 @@ export default function Dashboard() {
                   const formattedAmt = isPositive
                     ? `+${absAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                     : `-${absAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-                  const typeLabel = log.type === 'buy' ? 'Compra' :
-                                    log.type === 'sell' ? 'Venta' :
-                                    log.type === 'exchange' ? 'Conversión' :
-                                    log.type === 'transfer_in' ? 'Transferencia Recibida' : 'Transferencia Enviada';
-
+                  const typeLabel =
+                    log.type === 'buy'         ? 'Compra' :
+                    log.type === 'sell'        ? 'Venta' :
+                    log.type === 'exchange'    ? 'Conversión' :
+                    log.type === 'transfer_in' ? 'Transf. Recibida' : 'Transf. Enviada';
                   return (
                     <tr key={log.id}>
                       <td>{new Date(log.created_at).toLocaleDateString()}</td>
@@ -233,7 +248,7 @@ export default function Dashboard() {
                       </td>
                       <td>
                         <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--text-primary)' }}>{typeLabel}</div>
-                        <div className="small" style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>{log.desc}</div>
+                        <div className="small" style={{ fontSize: '10.5px' }}>{log.desc}</div>
                       </td>
                     </tr>
                   );
@@ -246,9 +261,7 @@ export default function Dashboard() {
         {/* Verification */}
         <div className="dashboard-sub-panel">
           <div className="dashboard-section-title">Documento de Verificación</div>
-          <p className="small">
-            Sube tu identificación o comprobante de fondos para habilitar límites superiores.
-          </p>
+          <p className="small">Sube tu identificación o comprobante de fondos para habilitar límites superiores.</p>
           <label className="upload-box" style={{ marginTop: '16px' }}>
             <input type="file" accept="image/*,application/pdf" onChange={handleDocumentUpload} disabled={isUploading} />
             <span>{isUploading ? 'Subiendo archivo...' : 'Seleccionar documento'}</span>
