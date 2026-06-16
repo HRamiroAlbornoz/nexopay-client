@@ -8,6 +8,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
+import type { TooltipProps } from 'recharts';
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import type { Transaction } from '../../../types/transaction.types';
 
 interface TransactionTimelineProps {
@@ -24,7 +26,14 @@ const TYPE_COLORS: Record<string, string> = {
   transfer_out: '#ff1744',
 };
 
-function CustomTooltip({ active, payload }: any) {
+/** Props del callback dot de Recharts — solo los campos que usamos. */
+interface LineDotProps {
+  cx: number;
+  cy: number;
+  payload: DataPoint;
+}
+
+function CustomTooltip({ active, payload }: TooltipProps<ValueType, NameType>) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload as DataPoint;
   const color = TYPE_COLORS[d.type] ?? '#f3ba2f';
@@ -94,7 +103,7 @@ export default function TransactionTimeline({ transactions }: TransactionTimelin
           dataKey="amount"
           stroke="#f3ba2f"
           strokeWidth={2}
-          dot={(props: any) => {
+          dot={(props: LineDotProps) => {
             const { cx, cy, payload } = props;
             const color = TYPE_COLORS[payload.type] ?? '#f3ba2f';
             return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={color} stroke="none" />;

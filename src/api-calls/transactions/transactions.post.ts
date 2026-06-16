@@ -82,5 +82,7 @@ export async function createTransfer(payload: {
     const err = (await res.json().catch(() => ({}))) as { message?: string };
     throw new Error(err.message ?? `Error ${res.status}`);
   }
-  return res.json() as Promise<{ ok: boolean }>;
+  const transferResponseSchema = z.object({ ok: z.boolean() });
+  const raw: unknown = await res.json();
+  return transferResponseSchema.parse(raw);
 }

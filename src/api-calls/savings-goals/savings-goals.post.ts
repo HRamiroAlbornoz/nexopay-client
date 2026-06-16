@@ -1,16 +1,6 @@
-import { z } from 'zod';
 import { API_BASE_URL } from '../../lib/apiConfig';
 import type { CurrencyCode } from '../../types/currency.types';
-
-const savingsGoalSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  target_amount: z.number(),
-  current_amount: z.number(),
-  currency_code: z.enum(['ARS', 'USD', 'EUR']),
-  status: z.enum(['active', 'completed', 'cancelled']),
-  target_date: z.string().nullable(),
-});
+import { savingsGoalSchema } from '../../types/savings-goal.types';
 
 /**
  * POST /api/savings-goals

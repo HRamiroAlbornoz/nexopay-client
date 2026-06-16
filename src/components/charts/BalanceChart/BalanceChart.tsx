@@ -8,6 +8,8 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
+import type { TooltipProps } from 'recharts';
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 
 export interface BalanceDataPoint {
   date: string;
@@ -26,7 +28,7 @@ const COLORS = {
   EUR: '#7c6dfa',
 };
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label }: TooltipProps<ValueType, NameType>) {
   if (!active || !payload?.length) return null;
   return (
     <div
@@ -40,11 +42,11 @@ function CustomTooltip({ active, payload, label }: any) {
       }}
     >
       <div style={{ color: '#8a99ad', marginBottom: 8, fontWeight: 700, fontSize: 11 }}>
-        {label}
+        {label as string}
       </div>
-      {payload.map((entry: any) => (
-        <div key={entry.dataKey} style={{ color: entry.color, fontWeight: 700, marginBottom: 4 }}>
-          {entry.dataKey}: {Number(entry.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+      {payload.map((entry) => (
+        <div key={String(entry.dataKey)} style={{ color: entry.color, fontWeight: 700, marginBottom: 4 }}>
+          {String(entry.dataKey)}: {Number(entry.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </div>
       ))}
     </div>
