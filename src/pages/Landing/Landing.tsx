@@ -3,11 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { loginUser, registerUser, loginOrRegisterWithGoogle } from '../../api-calls/auth/auth.post';
 import FloatingSymbols from '../../components/ui/FloatingSymbols';
-
-/* ─── Smoky orb component ──────────────────────────────────────────────── */
-function SmokyOrb({ style }: { style: React.CSSProperties }) {
-  return <div style={{ position: 'absolute', borderRadius: '50%', filter: 'blur(80px)', pointerEvents: 'none', ...style }} />;
-}
+import './Landing.css';
 
 export default function Landing() {
   const { login, status, googleReady, googleClientId, user } = useAuth();
@@ -80,6 +76,34 @@ export default function Landing() {
     (window as any).google.accounts.id.prompt();
   };
 
+  /* Inicio de sesión demo con credenciales de seed y fallback a mock */
+  const handleDemoLogin = async () => {
+    setAlert(null);
+    setFormStatus('loading');
+    try {
+      // Intenta iniciar sesión real con el usuario de demo sembrado
+      const loggedUser = await loginUser({ email: 'richard@nexopay.com', password: 'Test1234' });
+      login(loggedUser);
+      navigate('/dashboard', { replace: true });
+    } catch (err: any) {
+      console.warn('Real demo login failed, falling back to mock login:', err);
+      // Fallback local en caso de que el backend no responda o no esté sembrado
+      const mockUser = {
+        id: 'd8cae933-c80b-4a51-991d-795bcf54eb6d',
+        email: 'richard@nexopay.com',
+        first_name: 'Richard',
+        last_name: 'González',
+      };
+      login(mockUser);
+      setAlert({ message: 'Modo demo activado (local/offline). Redirigiendo...', type: 'info' });
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true });
+      }, 1200);
+    } finally {
+      setFormStatus('idle');
+    }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setAlert(null);
@@ -128,59 +152,28 @@ export default function Landing() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#06080f', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+    <div className="landing-container">
       <FloatingSymbols />
 
       {/* ── Orbes humeantes de fondo ── */}
-      <SmokyOrb style={{ width: 600, height: 600, top: '-15%', left: '-12%', background: 'radial-gradient(circle, rgba(243,186,47,0.18) 0%, transparent 70%)' }} />
-      <SmokyOrb style={{ width: 500, height: 500, bottom: '-10%', right: '-10%', background: 'radial-gradient(circle, rgba(124,109,250,0.22) 0%, transparent 70%)' }} />
-      <SmokyOrb style={{ width: 380, height: 380, top: '40%', left: '35%', background: 'radial-gradient(circle, rgba(0,230,118,0.10) 0%, transparent 70%)' }} />
+      <div className="smoky-orb orb-gold" />
+      <div className="smoky-orb orb-purple" />
+      <div className="smoky-orb orb-green" />
 
-      <div style={{
-        position: 'relative', zIndex: 1,
-        width: 'min(1100px, calc(100% - 32px))',
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0,1.2fr) 400px',
-        gap: 28,
-        alignItems: 'center',
-        margin: '32px auto',
-      }}>
+      <div className="landing-grid">
 
         {/* ══════════ PANEL IZQUIERDO — HERO ══════════ */}
-        <div style={{
-          position: 'relative',
-          minHeight: 560,
-          borderRadius: 20,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
-          padding: 48,
-          border: '1px solid rgba(255,255,255,0.06)',
-          background: 'linear-gradient(160deg, rgba(16,20,40,0.9) 0%, rgba(6,8,15,0.97) 100%)',
-          boxShadow: '0 30px 80px rgba(0,0,0,0.6)',
-        }}>
-          {/* Orbe dorado dentro del hero */}
-          <div style={{
-            position: 'absolute', top: -80, right: -60,
-            width: 380, height: 380, borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(243,186,47,0.25) 0%, transparent 65%)',
-            filter: 'blur(50px)', pointerEvents: 'none',
-          }} />
-          {/* Orbe violeta dentro del hero */}
-          <div style={{
-            position: 'absolute', bottom: -60, left: -40,
-            width: 320, height: 320, borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(124,109,250,0.2) 0%, transparent 65%)',
-            filter: 'blur(50px)', pointerEvents: 'none',
-          }} />
+        <div className="landing-hero">
+          {/* Orbes internos */}
+          <div className="hero-orb-gold" />
+          <div className="hero-orb-purple" />
 
           {/* Chart decorativo SVG */}
           <svg style={{ position: 'absolute', top: 40, left: 0, right: 0, opacity: 0.12 }} viewBox="0 0 700 260" fill="none" xmlns="http://www.w3.org/2000/svg">
             <polyline points="0,200 100,170 200,185 310,130 430,145 540,80 700,95" stroke="#f3ba2f" strokeWidth="3" fill="none" strokeLinejoin="round" />
             <polyline points="0,230 100,210 200,220 310,180 430,195 540,140 700,155" stroke="#7c6dfa" strokeWidth="2" fill="none" strokeLinejoin="round" strokeDasharray="6 4" />
-            {[100,310,540].map((x, i) => (
-              <circle key={i} cx={x} cy={[170,130,80][i]} r="6" fill="#f3ba2f" opacity="0.9" />
+            {[100, 310, 540].map((x, i) => (
+              <circle key={i} cx={x} cy={[170, 130, 80][i]} r="6" fill="#f3ba2f" opacity="0.9" />
             ))}
           </svg>
 
@@ -215,9 +208,9 @@ export default function Landing() {
             {/* Métricas */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, maxWidth: 480 }}>
               {[
-                { value: '3 Activas',   label: 'ARS · USD · EUR',          color: '#f3ba2f' },
-                { value: 'Google',      label: 'Autenticación segura',      color: '#7c6dfa' },
-                { value: '100%',        label: 'Inclusivo y premium',       color: '#00e676' },
+                { value: '3 Activas', label: 'ARS · USD · EUR', color: '#f3ba2f' },
+                { value: 'Google', label: 'Autenticación segura', color: '#7c6dfa' },
+                { value: '100%', label: 'Inclusivo y premium', color: '#00e676' },
               ].map((m) => (
                 <div key={m.value} style={{
                   padding: '14px 16px',
@@ -235,27 +228,8 @@ export default function Landing() {
         </div>
 
         {/* ══════════ PANEL DERECHO — CARD AUTH ══════════ */}
-        <div style={{
-          position: 'relative',
-          borderRadius: 20,
-          overflow: 'hidden',
-          border: '1px solid rgba(243,186,47,0.15)',
-          background: 'linear-gradient(160deg, rgba(18,22,38,0.95) 0%, rgba(10,12,22,0.98) 100%)',
-          boxShadow: '0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04)',
-          backdropFilter: 'blur(30px)',
-        }}>
-          {/* Brillo superior de la card */}
-          <div style={{
-            position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-            background: 'linear-gradient(90deg, transparent, rgba(243,186,47,0.8), rgba(124,109,250,0.6), transparent)',
-          }} />
-          {/* Orbe interior */}
-          <div style={{
-            position: 'absolute', top: -80, right: -60, width: 260, height: 260,
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(243,186,47,0.12) 0%, transparent 70%)',
-            filter: 'blur(40px)', pointerEvents: 'none',
-          }} />
+        <div className="landing-card">
+          <div className="card-orb" />
 
           <div style={{ padding: '32px 30px', position: 'relative', zIndex: 1 }}>
             {/* Header */}
@@ -274,21 +248,13 @@ export default function Landing() {
             </div>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 4, marginBottom: 24 }}>
+            <div className="tabs-container">
               {(['login', 'register'] as const).map((tab) => (
                 <button
                   key={tab}
                   type="button"
                   onClick={() => switchTab(tab)}
-                  style={{
-                    flex: 1, padding: '8px 12px', borderRadius: 7, border: 'none', cursor: 'pointer',
-                    fontSize: 13, fontWeight: 700, transition: 'all 0.22s ease',
-                    background: activeTab === tab
-                      ? 'linear-gradient(135deg,#f3ba2f,#dca018)'
-                      : 'transparent',
-                    color: activeTab === tab ? '#06080f' : '#8a99ad',
-                    boxShadow: activeTab === tab ? '0 4px 14px rgba(243,186,47,0.3)' : 'none',
-                  }}
+                  className={`tab-btn ${activeTab === tab ? 'active' : ''}`}
                 >
                   {tab === 'login' ? 'Ingresar' : 'Registrarse'}
                 </button>
@@ -350,6 +316,7 @@ export default function Landing() {
                       position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
                       background: 'none', border: 'none', cursor: 'pointer',
                       color: '#8a99ad', fontSize: 15, padding: 0, lineHeight: 1,
+                      zIndex: 2,
                     }}
                   >
                     {showPass ? '🙈' : '👁️'}
@@ -360,48 +327,43 @@ export default function Landing() {
               <button
                 type="submit"
                 disabled={formStatus === 'loading'}
-                style={{
-                  marginTop: 6,
-                  minHeight: 44,
-                  width: '100%',
-                  borderRadius: 10,
-                  border: 'none',
-                  cursor: formStatus === 'loading' ? 'not-allowed' : 'pointer',
-                  fontWeight: 800,
-                  fontSize: 14,
-                  letterSpacing: '0.03em',
-                  background: formStatus === 'loading'
-                    ? 'rgba(243,186,47,0.4)'
-                    : 'linear-gradient(135deg, #f3ba2f 0%, #ffdd80 50%, #dca018 100%)',
-                  color: '#06080f',
-                  boxShadow: formStatus === 'loading' ? 'none' : '0 6px 24px rgba(243,186,47,0.35)',
-                  transition: 'all 0.25s ease',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
+                className="submit-btn"
               >
                 {formStatus === 'loading' ? (
-                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                    <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(6,8,15,0.3)', borderTopColor: '#06080f', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+                  <>
+                    <span className="loading-spinner" />
                     Procesando...
-                  </span>
+                  </>
                 ) : activeTab === 'login' ? 'Ingresar a mi cuenta' : 'Registrarme en Nexopay'}
               </button>
+
+              {activeTab === 'login' && (
+                <button
+                  type="button"
+                  className="demo-btn"
+                  onClick={handleDemoLogin}
+                  disabled={formStatus === 'loading'}
+                >
+                  {formStatus === 'loading' ? (
+                    <span className="loading-spinner" style={{ borderColor: 'rgba(0, 230, 118, 0.2)', borderTopColor: '#00e676' }} />
+                  ) : (
+                    'Acceso Rápido a Demo'
+                  )}
+                </button>
+              )}
             </form>
 
             {/* Divisor */}
             <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0' }}>
-              <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.1))' }} />
+              <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.06))' }} />
               <span style={{ margin: '0 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#4a5568' }}>O continuar con</span>
-              <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg,rgba(255,255,255,0.1),transparent)' }} />
+              <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg,rgba(255,255,255,0.06),transparent)' }} />
             </div>
 
-            {/* ── Botón Google — UN SOLO BOTÓN ──
-                Si el SDK ya está listo, muestra el botón nativo de Google.
-                Si no, muestra el botón personalizado como fallback.             */}
+            {/* ── Botón Google — UN SOLO BOTÓN ── */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
               {googleReady && googleClientId ? (
-                /* Botón oficial del SDK de Google (theme filled_black = oscuro, encaja con la UI) */
+                /* Botón oficial del SDK de Google (theme filled_black = oscuro) */
                 <div ref={googleButtonRef} style={{ width: '100%', display: 'flex', justifyContent: 'center', minHeight: 44 }} />
               ) : (
                 /* Fallback: botón custom cuando el SDK aún no cargó o no hay Client ID */
@@ -448,14 +410,6 @@ export default function Landing() {
           </div>
         </div>
       </div>
-
-      {/* Responsive: stack en mobile */}
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @media (max-width: 860px) {
-          .landing-grid { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
     </div>
   );
 }
