@@ -3,7 +3,6 @@ import { sendChatMessage } from '../../api-calls/chatbot/chatbot.post';
 
 describe('chatbot API wrapper', () => {
   it('sendChatMessage returns reply when API responds 200', async () => {
-    // @ts-ignore
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -15,7 +14,6 @@ describe('chatbot API wrapper', () => {
   });
 
   it('sendChatMessage throws ApiError on rate limit 429', async () => {
-    // @ts-ignore
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 429,

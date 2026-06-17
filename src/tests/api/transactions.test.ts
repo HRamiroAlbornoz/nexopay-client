@@ -18,7 +18,6 @@ describe('transactions API wrappers', () => {
       created_at: new Date().toISOString(),
     };
 
-    // @ts-ignore
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -32,7 +31,6 @@ describe('transactions API wrappers', () => {
   });
 
   it('createBuyTransaction throws ApiError on 422', async () => {
-    // @ts-ignore
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 422,

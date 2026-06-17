@@ -125,8 +125,7 @@ export default function ChatWidget() {
     setIsOnline(true);
 
     try {
-      const history: ChatMessage[] = messages.map(({ role, content: c }) => ({ role, content: c }));
-      const reply = await sendChatMessage(content, history);
+      const reply = await sendChatMessage(content);
       setMessages((prev) => [
         ...prev,
         { id: generateId(), role: 'assistant', content: reply, timestamp: new Date() },

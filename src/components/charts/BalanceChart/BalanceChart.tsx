@@ -42,10 +42,9 @@ function CustomTooltip({ active, payload, label }: TooltipContentProps<ValueType
       }}
     >
       <div style={{ color: '#8a99ad', marginBottom: 8, fontWeight: 700, fontSize: 11 }}>
-        {label as string}
+        {String(label)}
       </div>
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      {(payload as any[]).map((entry: any) => (
+      {payload.map((entry) => (
         <div key={String(entry.dataKey)} style={{ color: entry.color, fontWeight: 700, marginBottom: 4 }}>
           {String(entry.dataKey)}: {Number(entry.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </div>

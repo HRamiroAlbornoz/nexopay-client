@@ -28,7 +28,7 @@ export class ApiError extends Error {
  */
 export async function parseApiResponse(res: Response): Promise<unknown> {
   const text = await res.text().catch(() => '');
-  let raw: unknown = null;
+  let raw: unknown;
   try {
     raw = text ? JSON.parse(text) : null;
   } catch {
