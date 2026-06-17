@@ -94,8 +94,11 @@ export async function loginOrRegisterWithGoogle(credential: string): Promise<Use
     // 1. Try to login
     return await loginUser({ email, password });
   } catch (error: any) {
-    // 2. If it fails with credentials error, we assume the user is not registered. Let's auto-register
-    if (error.message && (error.message.includes('inválidas') || error.message.includes('encontrado'))) {
+    // 2. If it fails with credentials error (401/404) or specific messages, we assume the user is not registered. Let's auto-register
+    const isAuthError = error instanceof ApiError && (error.status === 401 || error.status === 404);
+    const isMessageError = error.message && (error.message.includes('inválidas') || error.message.includes('encontrado'));
+    
+    if (isAuthError || isMessageError) {
       try {
         await registerUser({
           email,

@@ -28,7 +28,9 @@ const COLORS = {
   EUR: '#7c6dfa',
 };
 
-function CustomTooltip({ active, payload, label }: TooltipContentProps<ValueType, NameType>) {
+// Tooltip personalizado con tipado oficial y fallback para evitar errores de IDE con Recharts
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CustomTooltip({ active, payload, label }: TooltipContentProps<ValueType, NameType> | any) {
   if (!active || !payload?.length) return null;
   return (
     <div
