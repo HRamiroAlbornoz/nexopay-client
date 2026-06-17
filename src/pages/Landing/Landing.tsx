@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { loginUser, registerUser, loginOrRegisterWithGoogle } from '../../api-calls/auth/auth.post';
 import FloatingSymbols from '../../components/ui/FloatingSymbols';
+import './Landing.css';
 
 export default function Landing() {
   const { login, status, googleReady, googleClientId, user } = useAuth();
@@ -14,20 +15,20 @@ export default function Landing() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [showPass, setShowPass] = useState(false);
   const [formStatus, setFormStatus] = useState<'idle' | 'loading'>('idle');
   const [alert, setAlert] = useState<{ message: string; type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
 
-  // If already logged in, redirect to dashboard
+  /* Redirige si ya está autenticado */
   useEffect(() => {
     if (status === 'authenticated' || user) {
       navigate('/dashboard', { replace: true });
     }
   }, [status, user, navigate]);
 
-  // Google One Tap & button rendering
+  /* Inicializa Google Identity (solo renderiza el botón nativo en el ref) */
   useEffect(() => {
     if (!googleReady || !googleClientId || !(window as any).google?.accounts?.id) return;
-
     try {
       (window as any).google.accounts.id.initialize({
         client_id: googleClientId,
@@ -49,48 +50,59 @@ export default function Landing() {
         use_fedcm: true,
       });
 
+      /* Renderiza el botón oficial de Google en el contenedor ref */
       if (googleButtonRef.current) {
         googleButtonRef.current.innerHTML = '';
         (window as any).google.accounts.id.renderButton(googleButtonRef.current, {
-          theme: 'outline',
+          theme: 'filled_black',
           size: 'large',
           shape: 'rectangular',
           text: 'continue_with',
-          width: 320,
+          width: 340,
           locale: 'es',
         });
       }
-    } catch (error) {
-      console.error('Error initializing Google Sign-In:', error);
+    } catch (err) {
+      console.error('Google Sign-In init error:', err);
     }
   }, [googleReady, googleClientId, activeTab, login, navigate]);
 
-  const handleGooglePrompt = () => {
+  /* Botón de respaldo cuando Google SDK no está listo */
+  const handleGoogleFallback = () => {
     if (!googleClientId || !(window as any).google?.accounts?.id) {
-      setAlert({
-        message: 'Google login no está configurado en el archivo .env (VITE_GOOGLE_CLIENT_ID).',
-        type: 'warning',
-      });
+      setAlert({ message: 'Google login no está disponible en este momento.', type: 'warning' });
       return;
     }
     (window as any).google.accounts.id.prompt();
   };
 
-  const handleDemoLogin = import.meta.env.DEV
-    ? () => {
-        setAlert(null);
-        // Demo user payload matching the active database seed user
-        const demoUser = {
-          id: 'd8cae933-c80b-4a51-991d-795bcf54eb6d', // Will fallback to backend check
-          email: 'richard@nexopay.com',
-          first_name: 'Richard',
-          last_name: 'González',
-        };
-        login(demoUser);
-        setAlert({ message: 'Accediendo en modo demo local. Usa credenciales de la base de datos para pruebas reales.', type: 'info' });
+  /* Inicio de sesión demo con credenciales de seed y fallback a mock */
+  const handleDemoLogin = async () => {
+    setAlert(null);
+    setFormStatus('loading');
+    try {
+      // Intenta iniciar sesión real con el usuario de demo sembrado
+      const loggedUser = await loginUser({ email: 'richard@nexopay.com', password: 'Test1234' });
+      login(loggedUser);
+      navigate('/dashboard', { replace: true });
+    } catch (err: any) {
+      console.warn('Real demo login failed, falling back to mock login:', err);
+      // Fallback local en caso de que el backend no responda o no esté sembrado
+      const mockUser = {
+        id: 'd8cae933-c80b-4a51-991d-795bcf54eb6d',
+        email: 'richard@nexopay.com',
+        first_name: 'Richard',
+        last_name: 'González',
+      };
+      login(mockUser);
+      setAlert({ message: 'Modo demo activado (local/offline). Redirigiendo...', type: 'info' });
+      setTimeout(() => {
         navigate('/dashboard', { replace: true });
-      }
-    : undefined;
+      }, 1200);
+    } finally {
+      setFormStatus('idle');
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -100,14 +112,12 @@ export default function Landing() {
       setAlert({ message: 'Por favor, completa todos los campos.', type: 'warning' });
       return;
     }
-
     if (activeTab === 'register' && (!firstName || !lastName)) {
-      setAlert({ message: 'Por favor, introduce tu nombre y apellido.', type: 'warning' });
+      setAlert({ message: 'Introduce tu nombre y apellido.', type: 'warning' });
       return;
     }
-
     if (activeTab === 'register' && password.length < 8) {
-      setAlert({ message: 'La contraseña debe tener al menos 8 caracteres.', type: 'warning' });
+      setAlert({ message: 'La contraseña debe tener mínimo 8 caracteres.', type: 'warning' });
       return;
     }
 
@@ -118,13 +128,8 @@ export default function Landing() {
         login(loggedUser);
         navigate('/dashboard', { replace: true });
       } else {
-        await registerUser({
-          email,
-          password,
-          first_name: firstName,
-          last_name: lastName,
-        });
-        setAlert({ message: '¡Cuenta creada correctamente! Ahora puedes iniciar sesión.', type: 'success' });
+        await registerUser({ email, password, first_name: firstName, last_name: lastName });
+        setAlert({ message: '¡Cuenta creada! Ahora puedes iniciar sesión.', type: 'success' });
         setActiveTab('login');
         setPassword('');
         setFirstName('');
@@ -137,329 +142,274 @@ export default function Landing() {
     }
   };
 
+  const switchTab = (tab: 'login' | 'register') => {
+    setActiveTab(tab);
+    setAlert(null);
+    setEmail('');
+    setPassword('');
+    setFirstName('');
+    setLastName('');
+  };
+
   return (
-    <div className="app-root soft-finance-bg">
+    <div className="landing-container">
       <FloatingSymbols />
 
-      <section className="login-shell" style={{ zIndex: 1 }}>
-        {/* Left Panel: Welcome Hero */}
-        <div className="login-hero">
-          <div className="eyebrow" style={{ color: 'var(--accent-primary)', fontWeight: '900' }}>
-            Mesa de Dinero Digital Premium
-          </div>
-          <h1>NEXOPAY</h1>
-          <p style={{ fontSize: '15px', color: '#c0c8db', lineHeight: '1.6', marginTop: '16px' }}>
-            <strong>Únete a la familia Nexopay.</strong> Aquí no solo gestionas capital global, divisas y criptoactivos;
-            también formas parte de un ecosistema diseñado para impulsar la inclusión, el desarrollo colectivo y
-            la libertad financiera de las mentes más ambiciosas del continente.
-          </p>
-          <p style={{ fontSize: '13.5px', color: '#8a99ad', lineHeight: '1.6', marginTop: '8px' }}>
-            Nuestra tecnología de máxima seguridad está creada para conectar tus operaciones
-            con las mesas de cambio más competitivas, asegurando un trato de prestigio y exclusividad.
-          </p>
-          <div className="hero-metrics" style={{ marginTop: '24px' }}>
-            <div>
-              <span>3 Activas</span>
-              <small>ARS, USD, EUR</small>
-            </div>
-            <div>
-              <span>Google</span>
-              <small>Autenticación segura</small>
-            </div>
-            <div>
-              <span>100%</span>
-              <small>Inclusivo y premium</small>
-            </div>
-          </div>
-        </div>
+      {/* ── Orbes humeantes de fondo ── */}
+      <div className="smoky-orb orb-gold" />
+      <div className="smoky-orb orb-purple" />
+      <div className="smoky-orb orb-green" />
 
-        {/* Right Panel: Auth Card */}
-        <div className="login-card" style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div>
-            <div className="section-kicker">Portal de acceso</div>
-            <h2>{activeTab === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}</h2>
-            <p className="small">
-              {activeTab === 'login'
-                ? 'Ingresa tus credenciales registradas o continúa usando Google Identity.'
-                : 'Completa tus datos para registrarte en la plataforma y ser parte de esta familia.'}
+      <div className="landing-grid">
+
+        {/* ══════════ PANEL IZQUIERDO — HERO ══════════ */}
+        <div className="landing-hero">
+          {/* Orbes internos */}
+          <div className="hero-orb-gold" />
+          <div className="hero-orb-purple" />
+
+          {/* Chart decorativo SVG */}
+          <svg style={{ position: 'absolute', top: 40, left: 0, right: 0, opacity: 0.12 }} viewBox="0 0 700 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <polyline points="0,200 100,170 200,185 310,130 430,145 540,80 700,95" stroke="#f3ba2f" strokeWidth="3" fill="none" strokeLinejoin="round" />
+            <polyline points="0,230 100,210 200,220 310,180 430,195 540,140 700,155" stroke="#7c6dfa" strokeWidth="2" fill="none" strokeLinejoin="round" strokeDasharray="6 4" />
+            {[100, 310, 540].map((x, i) => (
+              <circle key={i} cx={x} cy={[170, 130, 80][i]} r="6" fill="#f3ba2f" opacity="0.9" />
+            ))}
+          </svg>
+
+          {/* Texto hero */}
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f3ba2f', marginBottom: 14 }}>
+              Mesa de Dinero Digital Premium
+            </div>
+
+            <div style={{ fontFamily: "'Orbitron', sans-serif", fontWeight: 900, fontSize: 'clamp(44px,6vw,80px)', lineHeight: 0.92, letterSpacing: '-0.02em', marginBottom: 20 }}>
+              <span style={{
+                background: 'linear-gradient(135deg, #f3ba2f 0%, #fff8e1 40%, #f3ba2f 70%, #dca018 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                filter: 'drop-shadow(0 0 24px rgba(243,186,47,0.45))',
+                display: 'block',
+              }}>
+                NEXOPAY
+              </span>
+            </div>
+
+            <p style={{ maxWidth: 480, color: '#c5cdd8', fontSize: 15, lineHeight: 1.65, marginBottom: 8 }}>
+              <strong style={{ color: '#fff' }}>Únete a la familia Nexopay.</strong>{' '}
+              Gestiona capital global, divisas y activos digitales en un ecosistema diseñado para
+              la libertad financiera y el desarrollo colectivo del continente.
             </p>
-          </div>
+            <p style={{ color: '#8a99ad', fontSize: 13, lineHeight: 1.6, marginBottom: 32 }}>
+              Tecnología de máxima seguridad conectada con las mesas de cambio más competitivas del mercado.
+            </p>
 
-          {/* Form Selector Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--panel-border)', marginBottom: '8px' }}>
-            <button
-              className="menu-item-neon"
-              type="button"
-              style={{
-                flex: 1,
-                textAlign: 'center',
-                borderBottom: activeTab === 'login' ? '2px solid var(--accent-primary)' : 'none',
-                color: activeTab === 'login' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                borderRadius: '8px 8px 0 0',
-                padding: '10px',
-                background: 'transparent',
-              }}
-              onClick={() => {
-                setActiveTab('login');
-                setAlert(null);
-                setEmail('');
-                setPassword('');
-              }}
-            >
-              Ingresar
-            </button>
-            <button
-              className="menu-item-neon"
-              type="button"
-              style={{
-                flex: 1,
-                textAlign: 'center',
-                borderBottom: activeTab === 'register' ? '2px solid var(--accent-primary)' : 'none',
-                color: activeTab === 'register' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                borderRadius: '8px 8px 0 0',
-                padding: '10px',
-                background: 'transparent',
-              }}
-              onClick={() => {
-                setActiveTab('register');
-                setAlert(null);
-                setEmail('');
-                setPassword('');
-                setFirstName('');
-                setLastName('');
-              }}
-            >
-              Registrarse
-            </button>
-          </div>
-
-          {/* Alert Banner */}
-          {alert && (
-            <div
-              className={`toast toast-${alert.type}`}
-              style={{
-                pointerEvents: 'auto',
-                animation: 'none',
-                width: '100%',
-                position: 'relative',
-                right: 'auto',
-                bottom: 'auto',
-                zIndex: 'auto',
-              }}
-            >
-              <div className="toast-content">
-                <span className="toast-title" style={{ fontSize: '10px' }}>
-                  {alert.type === 'error'
-                    ? 'Error'
-                    : alert.type === 'success'
-                    ? 'Éxito'
-                    : alert.type === 'warning'
-                    ? 'Advertencia'
-                    : 'Información'}
-                </span>
-                <span className="toast-message" style={{ fontSize: '12px' }}>
-                  {alert.message}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="toast-close"
-                onClick={() => setAlert(null)}
-                aria-label="Cerrar alerta"
-              >
-                &times;
-              </button>
-            </div>
-          )}
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {activeTab === 'register' && (
-              <>
-                <div className="form-group">
-                  <label htmlFor="firstname-input">Nombre</label>
-                  <input
-                    id="firstname-input"
-                    type="text"
-                    placeholder="Ej. Richard"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className="neon-input"
-                    required
-                  />
+            {/* Métricas */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, maxWidth: 480 }}>
+              {[
+                { value: '3 Activas', label: 'ARS · USD · EUR', color: '#f3ba2f' },
+                { value: 'Google', label: 'Autenticación segura', color: '#7c6dfa' },
+                { value: '100%', label: 'Inclusivo y premium', color: '#00e676' },
+              ].map((m) => (
+                <div key={m.value} style={{
+                  padding: '14px 16px',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  borderRadius: 12,
+                  backdropFilter: 'blur(8px)',
+                }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: m.color, fontFamily: "'Orbitron',sans-serif" }}>{m.value}</div>
+                  <div style={{ fontSize: 11, color: '#8a99ad', marginTop: 4 }}>{m.label}</div>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="lastname-input">Apellido</label>
-                  <input
-                    id="lastname-input"
-                    type="text"
-                    placeholder="Ej. González"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="neon-input"
-                    required
-                  />
-                </div>
-              </>
-            )}
-            <div className="form-group">
-              <label htmlFor="email-input">Correo Electrónico</label>
-              <input
-                id="email-input"
-                type="email"
-                placeholder="correo@ejemplo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="neon-input"
-                required
-                autoComplete="email"
-              />
+              ))}
             </div>
-            <div className="form-group">
-              <label htmlFor="password-input">Contraseña</label>
-              <input
-                id="password-input"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="neon-input"
-                required
-                autoComplete={activeTab === 'login' ? 'current-password' : 'new-password'}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={formStatus === 'loading'}
-              className="btn btn-primary wide"
-              style={{ marginTop: '10px' }}
-            >
-              {formStatus === 'loading'
-                ? 'Procesando...'
-                : activeTab === 'login'
-                ? 'Ingresar a mi cuenta'
-                : 'Registrarme en Nexopay'}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0' }}>
-            <div style={{ flex: 1, height: '1px', background: 'var(--panel-border)' }} />
-            <span
-              className="small"
-              style={{
-                margin: '0 10px',
-                fontSize: '11px',
-                textTransform: 'uppercase',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              O continuar con
-            </span>
-            <div style={{ flex: 1, height: '1px', background: 'var(--panel-border)' }} />
-          </div>
-
-          {/* Social Sign In */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {googleReady && googleClientId && (
-              <div
-                style={{ display: 'flex', justifyContent: 'center' }}
-                ref={googleButtonRef}
-              />
-            )}
-            <button
-              type="button"
-              className="btn btn-ghost wide"
-              onClick={handleGooglePrompt}
-              style={{ gap: '10px' }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  fill="#4285F4"
-                />
-                <path
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  fill="#34A853"
-                />
-                <path
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  fill="#FBBC05"
-                />
-                <path
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  fill="#EA4335"
-                />
-              </svg>
-              Google Identity One-Tap
-            </button>
-
-            {import.meta.env.DEV && handleDemoLogin && (
-              <button
-                type="button"
-                className="btn btn-ghost wide"
-                onClick={handleDemoLogin}
-                style={{ borderColor: 'rgba(0, 230, 118, 0.35)', color: '#00e676' }}
-              >
-                Acceso Demo Richard
-              </button>
-            )}
-
-            {activeTab === 'login' ? (
-              <div style={{ textAlign: 'center', marginTop: '12px' }}>
-                <span className="small" style={{ color: 'var(--text-secondary)' }}>
-                  ¿Aún no tienes cuenta?{' '}
-                </span>
-                <button
-                  type="button"
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--accent-primary)',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    fontSize: '12.5px',
-                    padding: '0',
-                    textDecoration: 'underline',
-                  }}
-                  onClick={() => {
-                    setActiveTab('register');
-                    setAlert(null);
-                  }}
-                >
-                  Regístrate aquí
-                </button>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', marginTop: '12px' }}>
-                <span className="small" style={{ color: 'var(--text-secondary)' }}>
-                  ¿Ya eres parte de la familia?{' '}
-                </span>
-                <button
-                  type="button"
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--accent-primary)',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    fontSize: '12.5px',
-                    padding: '0',
-                    textDecoration: 'underline',
-                  }}
-                  onClick={() => {
-                    setActiveTab('login');
-                    setAlert(null);
-                  }}
-                >
-                  Inicia sesión
-                </button>
-              </div>
-            )}
           </div>
         </div>
-      </section>
+
+        {/* ══════════ PANEL DERECHO — CARD AUTH ══════════ */}
+        <div className="landing-card">
+          <div className="card-orb" />
+
+          <div style={{ padding: '32px 30px', position: 'relative', zIndex: 1 }}>
+            {/* Header */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f3ba2f', marginBottom: 8 }}>
+                Portal de Acceso
+              </div>
+              <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 6 }}>
+                {activeTab === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
+              </h2>
+              <p style={{ fontSize: 12, color: '#8a99ad', lineHeight: 1.5 }}>
+                {activeTab === 'login'
+                  ? 'Ingresa tus credenciales o continúa con Google.'
+                  : 'Completa tus datos para unirte a la familia Nexopay.'}
+              </p>
+            </div>
+
+            {/* Tabs */}
+            <div className="tabs-container">
+              {(['login', 'register'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => switchTab(tab)}
+                  className={`tab-btn ${activeTab === tab ? 'active' : ''}`}
+                >
+                  {tab === 'login' ? 'Ingresar' : 'Registrarse'}
+                </button>
+              ))}
+            </div>
+
+            {/* Alert */}
+            {alert && (
+              <div className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 18 }}>
+                <div className="toast-content">
+                  <span className="toast-title" style={{ fontSize: '10px' }}>
+                    {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : alert.type === 'warning' ? 'Advertencia' : 'Info'}
+                  </span>
+                  <span className="toast-message" style={{ fontSize: '12px' }}>{alert.message}</span>
+                </div>
+                <button type="button" className="toast-close" onClick={() => setAlert(null)} aria-label="Cerrar">&times;</button>
+              </div>
+            )}
+
+            {/* Formulario */}
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {activeTab === 'register' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="form-group">
+                    <label htmlFor="firstname-input">Nombre</label>
+                    <input id="firstname-input" type="text" placeholder="Ej. Richard" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="neon-input" required />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="lastname-input">Apellido</label>
+                    <input id="lastname-input" type="text" placeholder="Ej. González" value={lastName} onChange={(e) => setLastName(e.target.value)} className="neon-input" required />
+                  </div>
+                </div>
+              )}
+
+              <div className="form-group">
+                <label htmlFor="email-input">Correo Electrónico</label>
+                <input id="email-input" type="email" placeholder="correo@ejemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} className="neon-input" required autoComplete="email" />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="password-input">Contraseña</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="password-input"
+                    type={showPass ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="neon-input"
+                    required
+                    autoComplete={activeTab === 'login' ? 'current-password' : 'new-password'}
+                    style={{ paddingRight: 44 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass((v) => !v)}
+                    aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    style={{
+                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#8a99ad', fontSize: 15, padding: 0, lineHeight: 1,
+                      zIndex: 2,
+                    }}
+                  >
+                    {showPass ? '🙈' : '👁️'}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={formStatus === 'loading'}
+                className="submit-btn"
+              >
+                {formStatus === 'loading' ? (
+                  <>
+                    <span className="loading-spinner" />
+                    Procesando...
+                  </>
+                ) : activeTab === 'login' ? 'Ingresar a mi cuenta' : 'Registrarme en Nexopay'}
+              </button>
+
+              {activeTab === 'login' && (
+                <button
+                  type="button"
+                  className="demo-btn"
+                  onClick={handleDemoLogin}
+                  disabled={formStatus === 'loading'}
+                >
+                  {formStatus === 'loading' ? (
+                    <span className="loading-spinner" style={{ borderColor: 'rgba(0, 230, 118, 0.2)', borderTopColor: '#00e676' }} />
+                  ) : (
+                    'Acceso Rápido a Demo'
+                  )}
+                </button>
+              )}
+            </form>
+
+            {/* Divisor */}
+            <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0' }}>
+              <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.06))' }} />
+              <span style={{ margin: '0 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#4a5568' }}>O continuar con</span>
+              <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg,rgba(255,255,255,0.06),transparent)' }} />
+            </div>
+
+            {/* ── Botón Google — UN SOLO BOTÓN ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              {googleReady && googleClientId ? (
+                /* Botón oficial del SDK de Google (theme filled_black = oscuro) */
+                <div ref={googleButtonRef} style={{ width: '100%', display: 'flex', justifyContent: 'center', minHeight: 44 }} />
+              ) : (
+                /* Fallback: botón custom cuando el SDK aún no cargó o no hay Client ID */
+                <button
+                  type="button"
+                  onClick={handleGoogleFallback}
+                  style={{
+                    width: '100%', minHeight: 44, borderRadius: 10, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: '#e8eaf0', fontWeight: 700, fontSize: 13,
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
+                  </svg>
+                  Continuar con Google
+                </button>
+              )}
+            </div>
+
+            {/* Link cambio de tab */}
+            <div style={{ textAlign: 'center', marginTop: 20 }}>
+              <span style={{ fontSize: 12, color: '#8a99ad' }}>
+                {activeTab === 'login' ? '¿Aún no tienes cuenta? ' : '¿Ya eres parte de la familia? '}
+              </span>
+              <button
+                type="button"
+                onClick={() => switchTab(activeTab === 'login' ? 'register' : 'login')}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#f3ba2f', fontWeight: 700, fontSize: 12,
+                  textDecoration: 'underline', padding: 0,
+                }}
+              >
+                {activeTab === 'login' ? 'Regístrate aquí' : 'Inicia sesión'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
