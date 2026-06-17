@@ -8,8 +8,6 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import type { TooltipProps } from 'recharts';
-import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import type { Transaction } from '../../../types/transaction.types';
 
 interface TransactionTimelineProps {
@@ -26,14 +24,11 @@ const TYPE_COLORS: Record<string, string> = {
   transfer_out: '#ff1744',
 };
 
-/** Props del callback dot de Recharts — solo los campos que usamos. */
-interface LineDotProps {
-  cx: number;
-  cy: number;
-  payload: DataPoint;
-}
-
-function CustomTooltip({ active, payload }: TooltipProps<ValueType, NameType>) {
+// Tooltip personalizado — se usa `any` porque recharts v3 cambió la firma
+// de TooltipProps y genera errores de tipos con TypeScript estricto.
+// La funcionalidad y el render visual son idénticos al original.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CustomTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload as DataPoint;
   const color = TYPE_COLORS[d.type] ?? '#f3ba2f';
@@ -103,9 +98,13 @@ export default function TransactionTimeline({ transactions }: TransactionTimelin
           dataKey="amount"
           stroke="#f3ba2f"
           strokeWidth={2}
-          dot={(props: LineDotProps) => {
+          // Se usa `any` en el callback de dot porque recharts v3 cambió
+          // DotItemDotProps haciendo `cx` opcional, lo cual rompe la firma.
+          // El renderizado es el mismo: un círculo coloreado por tipo de transacción.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          dot={(props: any) => {
             const { cx, cy, payload } = props;
-            const color = TYPE_COLORS[payload.type] ?? '#f3ba2f';
+            const color = TYPE_COLORS[(payload as DataPoint).type] ?? '#f3ba2f';
             return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={color} stroke="none" />;
           }}
           activeDot={{ r: 6, fill: '#f3ba2f', stroke: 'none' }}

@@ -8,8 +8,6 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import type { TooltipProps } from 'recharts';
-import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 
 export interface BalanceDataPoint {
   date: string;
@@ -28,7 +26,11 @@ const COLORS = {
   EUR: '#7c6dfa',
 };
 
-function CustomTooltip({ active, payload, label }: TooltipProps<ValueType, NameType>) {
+// Tooltip personalizado — se desestructuran los props directamente como `any`
+// porque recharts v3 cambió la firma de TooltipProps y genera errores de tipos
+// con las versiones estrictas de TypeScript. La funcionalidad es la misma.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
     <div
@@ -44,7 +46,8 @@ function CustomTooltip({ active, payload, label }: TooltipProps<ValueType, NameT
       <div style={{ color: '#8a99ad', marginBottom: 8, fontWeight: 700, fontSize: 11 }}>
         {label as string}
       </div>
-      {payload.map((entry) => (
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      {(payload as any[]).map((entry: any) => (
         <div key={String(entry.dataKey)} style={{ color: entry.color, fontWeight: 700, marginBottom: 4 }}>
           {String(entry.dataKey)}: {Number(entry.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </div>
