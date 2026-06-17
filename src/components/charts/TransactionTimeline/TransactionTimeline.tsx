@@ -8,7 +8,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import type { TooltipProps } from 'recharts';
+import type { TooltipContentProps, DotItemDotProps } from 'recharts';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import type { Transaction } from '../../../types/transaction.types';
 
@@ -26,16 +26,10 @@ const TYPE_COLORS: Record<string, string> = {
   transfer_out: '#ff1744',
 };
 
-/** Props del callback dot de Recharts — solo los campos que usamos. */
-interface LineDotProps {
-  cx: number;
-  cy: number;
-  payload: DataPoint;
-}
-
-function CustomTooltip({ active, payload }: TooltipProps<ValueType, NameType>) {
+function CustomTooltip({ active, payload }: TooltipContentProps<ValueType, NameType>) {
   if (!active || !payload?.length) return null;
-  const d = payload[0].payload as DataPoint;
+  const d = payload[0]?.payload as DataPoint | undefined;
+  if (!d) return null;
   const color = TYPE_COLORS[d.type] ?? '#f3ba2f';
   const typeLabel =
     d.type === 'buy'          ? 'Compra' :
@@ -96,16 +90,18 @@ export default function TransactionTimeline({ transactions }: TransactionTimelin
           width={50}
           tickFormatter={(v: number) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v))}
         />
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={CustomTooltip} />
         <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" strokeDasharray="4 4" />
         <Line
           type="monotone"
           dataKey="amount"
           stroke="#f3ba2f"
           strokeWidth={2}
-          dot={(props: LineDotProps) => {
+          dot={(props: DotItemDotProps) => {
             const { cx, cy, payload } = props;
-            const color = TYPE_COLORS[payload.type] ?? '#f3ba2f';
+            if (cx == null || cy == null) return <></>;
+            const typedPayload = payload as DataPoint;
+            const color = TYPE_COLORS[typedPayload.type] ?? '#f3ba2f';
             return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={color} stroke="none" />;
           }}
           activeDot={{ r: 6, fill: '#f3ba2f', stroke: 'none' }}

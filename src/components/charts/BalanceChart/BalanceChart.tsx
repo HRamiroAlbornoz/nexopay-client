@@ -8,7 +8,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import type { TooltipProps } from 'recharts';
+import type { TooltipContentProps } from 'recharts';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 
 export interface BalanceDataPoint {
@@ -28,7 +28,7 @@ const COLORS = {
   EUR: '#7c6dfa',
 };
 
-function CustomTooltip({ active, payload, label }: TooltipProps<ValueType, NameType>) {
+function CustomTooltip({ active, payload, label }: TooltipContentProps<ValueType, NameType>) {
   if (!active || !payload?.length) return null;
   return (
     <div
@@ -87,7 +87,7 @@ export default function BalanceChart({ data }: BalanceChartProps) {
           width={50}
           tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v))}
         />
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={CustomTooltip} />
         <Legend
           wrapperStyle={{ fontSize: 11, color: '#8a99ad', paddingTop: 8 }}
           iconType="circle"
