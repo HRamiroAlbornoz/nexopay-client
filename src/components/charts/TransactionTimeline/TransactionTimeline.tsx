@@ -26,7 +26,9 @@ const TYPE_COLORS: Record<string, string> = {
   transfer_out: '#ff1744',
 };
 
-function CustomTooltip({ active, payload }: TooltipContentProps<ValueType, NameType>) {
+// Tooltip personalizado con tipado oficial y fallback para evitar errores de IDE con Recharts
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CustomTooltip({ active, payload }: TooltipContentProps<ValueType, NameType> | any) {
   if (!active || !payload?.length) return null;
   const d = payload[0]?.payload as DataPoint | undefined;
   if (!d) return null;
@@ -97,7 +99,8 @@ export default function TransactionTimeline({ transactions }: TransactionTimelin
           dataKey="amount"
           stroke="#f3ba2f"
           strokeWidth={2}
-          dot={(props: DotItemDotProps) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          dot={(props: DotItemDotProps | any) => {
             const { cx, cy, payload } = props;
             if (cx == null || cy == null) return <></>;
             const typedPayload = payload as DataPoint;
