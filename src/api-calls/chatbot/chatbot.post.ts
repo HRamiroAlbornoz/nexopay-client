@@ -1,4 +1,14 @@
-import { API_BASE_URL } from '../../lib/apiConfig';
+// ─── Llamada al asistente Nexo de NexoPay ────────────────────────────────────
+//
+// En producción (Vercel):  POST /api/chatbot  →  Vercel Function (api/chatbot.ts)
+// En desarrollo local:     POST /api/chatbot  →  proxy Vite → Railway backend
+//
+// La Vercel Function se encarga de:
+//   • Prompt del sistema financiero NexoPay
+//   • Gemini 2.5 Flash con temperatura 0.4
+//   • Límite de solicitudes por IP
+//   • Verificación de sesión contra Railway (/auth/me)
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -6,26 +16,31 @@ export interface ChatMessage {
 }
 
 /**
- * POST /api/chatbot
- * Envía un mensaje al asistente virtual de NexoPay.
- * El historial de conversación se pasa completo para mantener contexto.
+ * Envía un mensaje al asistente Nexo de NexoPay.
+ *
+ * El historial completo de la conversación se pasa en cada llamada
+ * para que Gemini mantenga el contexto de forma stateless.
+ *
+ * @param message  - Último mensaje escrito por el usuario
+ * @param history  - Historial previo (no incluye el mensaje actual)
+ * @returns        - Respuesta de texto generada por Nexo
  */
 export async function sendChatMessage(
   message: string,
   history: ChatMessage[] = []
 ): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}/chatbot`, {
-    method: 'POST',
+  const respuesta = await fetch('/api/chatbot', {
+    method:      'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, history }),
+    headers:     { 'Content-Type': 'application/json' },
+    body:        JSON.stringify({ message, history }),
   });
 
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(err.message ?? `Error ${res.status}`);
+  if (!respuesta.ok) {
+    const error = (await respuesta.json().catch(() => ({}))) as { message?: string; code?: string };
+    throw new Error(error.message ?? `Error ${respuesta.status}`);
   }
 
-  const data = (await res.json()) as { reply?: string; message?: string };
-  return data.reply ?? data.message ?? 'Sin respuesta del asistente.';
+  const datos = (await respuesta.json()) as { reply?: string; message?: string };
+  return datos.reply ?? datos.message ?? 'Sin respuesta del asistente.';
 }
