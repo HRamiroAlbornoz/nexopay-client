@@ -14,7 +14,7 @@ export default function Navbar() {
       await logoutUser();
       logout();
       navigate('/', { replace: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setLogoutError('Error al cerrar sesión.');
       console.error(err);
     }
