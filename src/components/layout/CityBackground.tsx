@@ -443,9 +443,9 @@ export default function CityBackground({ theme = 'dark' }: { theme?: 'light' | '
       const isNS = Math.random() > 0.5;
       const dir = Math.random() > 0.5 ? 1 : -1;
 
-      let spawnX = 0;
+      let spawnX: number;
       const spawnY = vType.geo.parameters.height / 2;
-      let spawnZ = 50;
+      let spawnZ: number;
 
       if (isNS) {
         spawnX = dir > 0 ? 8 : -8;
@@ -703,6 +703,7 @@ export default function CityBackground({ theme = 'dark' }: { theme?: 'light' | '
       }
       renderer.dispose();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only effect; theme changes are handled by the separate useEffect above
   }, []);
 
   return (
