@@ -44,6 +44,7 @@ export function useTransactions() {
   }, [user, logout]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- setState is called asynchronously inside fetchTransactions (after await), not synchronously in the effect
     void fetchTransactions();
   }, [fetchTransactions]);
 

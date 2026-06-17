@@ -92,6 +92,7 @@ export default function ChatWidget() {
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 180);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate one-shot update: clears notification badge when chat opens; no cascading renders
       setShowBadge(false);
     }
   }, [open]);
@@ -170,7 +171,7 @@ export default function ChatWidget() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, messages]);
+  }, [input, loading]);
 
   // ── Enter para enviar (Shift+Enter = salto de línea) ──
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

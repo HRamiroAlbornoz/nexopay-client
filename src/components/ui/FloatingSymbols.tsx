@@ -23,27 +23,6 @@ interface SymbolItem {
 export default function FloatingSymbols() {
   const [items, setItems] = useState<SymbolItem[]>([]);
 
-  useEffect(() => {
-    // Generate 16 floating symbols with random parameters
-    const initialItems = Array.from({ length: 16 }).map((_, idx) => createSymbol(idx));
-    setItems(initialItems);
-
-    // Recycle symbols periodically to keep them infinite
-    const interval = setInterval(() => {
-      setItems((prev) => {
-        return prev.map((item) => {
-          // If the animation has likely finished (e.g., after its duration), reset it
-          if (Date.now() - item.startTime > item.duration * 1000) {
-            return createSymbol(item.id);
-          }
-          return item;
-        });
-      });
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   function createSymbol(id: number): SymbolItem {
     const symbol = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)] || '$';
     const color = NEON_COLORS[Math.floor(Math.random() * NEON_COLORS.length)] || '#00f0ff';
@@ -63,6 +42,28 @@ export default function FloatingSymbols() {
       startTime: Date.now() + delay * 1000,
     };
   }
+
+  useEffect(() => {
+    // Generate 16 floating symbols with random parameters
+    const initialItems = Array.from({ length: 16 }).map((_, idx) => createSymbol(idx));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time initialization in a mount-only effect; not a cascading render
+    setItems(initialItems);
+
+    // Recycle symbols periodically to keep them infinite
+    const interval = setInterval(() => {
+      setItems((prev) => {
+        return prev.map((item) => {
+          // If the animation has likely finished (e.g., after its duration), reset it
+          if (Date.now() - item.startTime > item.duration * 1000) {
+            return createSymbol(item.id);
+          }
+          return item;
+        });
+      });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="floating-symbols-container">
