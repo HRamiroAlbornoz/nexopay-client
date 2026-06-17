@@ -32,7 +32,8 @@ async function postAuthEndpoint(path: string, body: unknown, errorFallback: stri
     raw = await parseApiResponse(response);
   } catch (err) {
     if (err instanceof ApiError) throw err;
-    throw new Error(errorFallback);
+    // Preserve the original cause so the error chain is traceable
+    throw new Error(errorFallback, { cause: err });
   }
 
   const parsed = authResponseSchema.safeParse(raw);
@@ -63,55 +64,65 @@ export async function logoutUser(): Promise<void> {
   }
 }
 
-// Helper to decode JWT payload from Google Identity Services client-side
-export function decodeJwtPayload(token: string): any {
+/**
+ * Decodes the payload section of a Google Identity Services JWT.
+ * Returns a typed record of the standard OIDC claims we use, or null if
+ * the token is malformed or cannot be decoded.
+ */
+export function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const payload = token.split('.')[1];
     if (!payload) return null;
     const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-    return JSON.parse(decodeURIComponent(json.split('').map((char) => {
-      return `%${(`00${char.charCodeAt(0).toString(16)}`).slice(-2)}`;
-    }).join('')));
+    const decoded = JSON.parse(
+      decodeURIComponent(
+        json.split('').map((char) => `%${(`00${char.charCodeAt(0).toString(16)}`).slice(-2)}`).join(''),
+      ),
+    ) as unknown;
+    return decoded !== null && typeof decoded === 'object'
+      ? (decoded as Record<string, unknown>)
+      : null;
   } catch (error) {
     console.warn('No fue posible leer el perfil de Google.', error);
     return null;
   }
 }
 
-// Orchestrator to seamlessly login or auto-register using Google credentials
+/** Orchestrator that seamlessly logs in or auto-registers a user via Google credentials. */
 export async function loginOrRegisterWithGoogle(credential: string): Promise<User> {
   const payload = decodeJwtPayload(credential);
-  if (!payload || !payload.email) {
+  if (!payload || typeof payload['email'] !== 'string') {
     throw new Error('Token de Google inválido');
   }
 
-  const email = payload.email.toLowerCase();
-  const password = `google_oauth_${payload.sub}`;
-  const first_name = payload.given_name || payload.name || 'Usuario';
-  const last_name = payload.family_name || '';
+  const email      = payload['email'].toLowerCase();
+  const password   = `google_oauth_${String(payload['sub'] ?? '')}`;
+  const first_name = typeof payload['given_name'] === 'string' ? payload['given_name']
+                   : typeof payload['name']       === 'string' ? payload['name']
+                   : 'Usuario';
+  const last_name  = typeof payload['family_name'] === 'string' ? payload['family_name'] : '';
 
   try {
-    // 1. Try to login
+    // 1. Try to log in with the derived credentials
     return await loginUser({ email, password });
-  } catch (error: any) {
-    // 2. If it fails with credentials error (401/404) or specific messages, we assume the user is not registered. Let's auto-register
-    const isAuthError = error instanceof ApiError && (error.status === 401 || error.status === 404);
-    const isMessageError = error.message && (error.message.includes('inválidas') || error.message.includes('encontrado'));
-    
+  } catch (loginError: unknown) {
+    // 2. If the account does not exist (401/404) or the message matches common
+    //    "not found / invalid" patterns, auto-register and then log in.
+    const isAuthError    = loginError instanceof ApiError && (loginError.status === 401 || loginError.status === 404);
+    const isMessageError = loginError instanceof Error &&
+      (loginError.message.includes('inválidas') || loginError.message.includes('encontrado'));
+
     if (isAuthError || isMessageError) {
       try {
-        await registerUser({
-          email,
-          password,
-          first_name,
-          last_name,
-        });
-        // 3. Login after successful registration to establish the cookie session
+        await registerUser({ email, password, first_name, last_name });
+        // 3. Log in after successful registration to establish the session cookie
         return await loginUser({ email, password });
-      } catch (regError: any) {
-        throw new Error(regError.message || 'Error en el registro automático con Google');
+      } catch (regError: unknown) {
+        const msg = regError instanceof Error ? regError.message : 'Error en el registro automático con Google';
+        throw new Error(msg, { cause: regError });
       }
     }
-    throw error;
+
+    throw loginError;
   }
 }
