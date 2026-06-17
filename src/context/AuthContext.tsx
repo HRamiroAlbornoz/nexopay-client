@@ -4,6 +4,7 @@ import { API_BASE_URL } from '../lib/apiConfig';
 
 const SESSION_HINT_KEY = 'nexopay_session';
 
+// eslint-disable-next-line react-refresh/only-export-components -- Zod schema is exported for reuse in other modules; not a React component
 export const userSchema = z.object({
   id: z.string().uuid(),
   email: z.email(),
@@ -24,6 +25,7 @@ export interface AuthContextValue {
   googleClientId: string | undefined;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- Context and Provider are intentionally co-located; Vite HMR limitation
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -39,7 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check if script is already present
     const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
     if (existing) {
-      if ((window as any).google?.accounts?.id) {
+      if (window.google?.accounts?.id) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- called once synchronously when script already loaded; no cascading renders
         setGoogleReady(true);
       } else {
         existing.addEventListener('load', () => setGoogleReady(true), { once: true });
@@ -59,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Session check on mount
   useEffect(() => {
     if (!localStorage.getItem(SESSION_HINT_KEY)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- guard-clause: sets state once and returns immediately; no cascading renders
       setStatus('unauthenticated');
       return;
     }
@@ -110,8 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(SESSION_HINT_KEY);
     setUser(null);
     setStatus('unauthenticated');
-    if ((window as any).google?.accounts?.id) {
-      (window as any).google.accounts.id.disableAutoSelect();
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.disableAutoSelect();
     }
   }
 
