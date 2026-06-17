@@ -4,7 +4,7 @@ import { useWallet } from '../../hooks/useWallet';
 
 export default function Transactions() {
   const { transactions, addTransaction } = useTransactions();
-  const { wallet, setWallet } = useWallet();
+  const { balances, updateBalance } = useWallet();
 
   const [fromCurrency, setFromCurrency] = useState<'ARS' | 'USD' | 'EUR'>('ARS');
   const [toCurrency, setToCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
@@ -43,7 +43,7 @@ export default function Transactions() {
     }
 
     // Check balance
-    const currentBalance = wallet?.balances.find((b) => b.currency_code === fromCurrency)?.amount || 0;
+    const currentBalance = balances.find((b) => b.currency_code === fromCurrency)?.amount || 0;
     if (convertAmount > currentBalance) {
       setAlert({ message: 'Saldo insuficiente para completar esta conversión.', type: 'error' });
       return;
@@ -75,16 +75,8 @@ export default function Transactions() {
       });
 
       // Update balances locally (immutable update via setWallet)
-      if (wallet) {
-        setWallet({
-          ...wallet,
-          balances: wallet.balances.map((b) => {
-            if (b.currency_code === fromCurrency) return { ...b, amount: b.amount - convertAmount };
-            if (b.currency_code === toCurrency) return { ...b, amount: b.amount + convertedVal };
-            return b;
-          }),
-        });
-      }
+      updateBalance(fromCurrency, -convertAmount);
+      updateBalance(toCurrency, convertedVal);
 
       setAlert({
         message: `¡Conversión exitosa! Has cambiado ${convertAmount} ${fromCurrency} por ${convertedVal.toFixed(2)} ${toCurrency}.`,

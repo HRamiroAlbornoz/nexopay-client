@@ -11,7 +11,7 @@ export interface Transaction {
   amount_to: number;
   exchange_rate: number;
   created_at: string;
-  desc?: string;
+  desc?: string | undefined;
 }
 
 export type CreateTransactionPayload = Omit<Transaction, 'id' | 'created_at'>;

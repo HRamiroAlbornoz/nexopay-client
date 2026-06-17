@@ -1,12 +1,11 @@
 import { z } from 'zod';
 import { userSchema, type User } from '../../context/AuthContext';
 import { API_BASE_URL } from '../../lib/apiConfig';
+import { parseApiResponse, ApiError } from '../../lib/apiError';
 
 const authResponseSchema = z.object({
   user: userSchema,
 });
-
-const errorResponseSchema = z.object({ message: z.string() });
 
 interface LoginInput {
   email: string;
@@ -20,19 +19,6 @@ interface RegisterInput {
   last_name: string;
 }
 
-function extractErrorMessage(raw: unknown, fallback: string): string {
-  const parsed = errorResponseSchema.safeParse(raw);
-  return parsed.success ? parsed.data.message : fallback;
-}
-
-async function safeParseJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
 async function postAuthEndpoint(path: string, body: unknown, errorFallback: string): Promise<User> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
@@ -41,10 +27,12 @@ async function postAuthEndpoint(path: string, body: unknown, errorFallback: stri
     body: JSON.stringify(body),
   });
 
-  const raw = await safeParseJson(response);
-
-  if (!response.ok) {
-    throw new Error(extractErrorMessage(raw, errorFallback));
+  let raw: unknown;
+  try {
+    raw = await parseApiResponse(response);
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    throw new Error(errorFallback);
   }
 
   const parsed = authResponseSchema.safeParse(raw);
@@ -106,8 +94,11 @@ export async function loginOrRegisterWithGoogle(credential: string): Promise<Use
     // 1. Try to login
     return await loginUser({ email, password });
   } catch (error: any) {
-    // 2. If it fails with credentials error, we assume the user is not registered. Let's auto-register
-    if (error.message && (error.message.includes('inválidas') || error.message.includes('encontrado'))) {
+    // 2. If it fails with credentials error (401/404) or specific messages, we assume the user is not registered. Let's auto-register
+    const isAuthError = error instanceof ApiError && (error.status === 401 || error.status === 404);
+    const isMessageError = error.message && (error.message.includes('inválidas') || error.message.includes('encontrado'));
+    
+    if (isAuthError || isMessageError) {
       try {
         await registerUser({
           email,
