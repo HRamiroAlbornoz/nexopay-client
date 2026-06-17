@@ -1,27 +1,34 @@
-import { createContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import type { Wallet, WalletBalance } from '../types/wallet.types';
+import { getWalletBalances } from '../api-calls/wallet/wallet.get';
+import { ApiError } from '../lib/apiError';
+import type { WalletBalance } from '../api-calls/wallet/wallet.get';
 import type { CurrencyCode } from '../types/currency.types';
 
+// ─── Tipos del contexto ───────────────────────────────────────────────────────
+
 export interface WalletContextValue {
-  wallet: Wallet | null;
-  setWallet: React.Dispatch<React.SetStateAction<Wallet | null>>;
-  loading: boolean;
-  error: string;
-  simulateDeposit: (currency: CurrencyCode, amount: number) => Promise<boolean>;
+  balances:    WalletBalance[];
+  loading:     boolean;
+  error:       string;
+  refetch:     () => Promise<void>;
+  /** Actualiza optimistamente un balance local tras una transacción exitosa. */
+  updateBalance: (currency: CurrencyCode, delta: number) => void;
 }
 
 export const WalletContext = createContext<WalletContextValue | null>(null);
 
-export function WalletProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  const [wallet, setWallet] = useState<Wallet | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
+export function WalletProvider({ children }: { children: ReactNode }) {
+  const { user, logout } = useAuth();
+  const [balances, setBalances] = useState<WalletBalance[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState('');
+
+  const fetchBalances = useCallback(async () => {
     if (!user) {
-      setWallet(null);
+      setBalances([]);
       setLoading(false);
       return;
     }
@@ -29,40 +36,40 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError('');
 
-    // Mock mientras el backend no tenga GET /api/wallet.
-    // Cuando Hernán habilite la ruta, reemplazar con:
-    //   const res = await fetch(`${API_BASE_URL}/wallet`, { credentials: 'include' });
-    //   const data = await res.json();
-    //   setWallet(walletSchema.parse(data));
-    const timer = setTimeout(() => {
-      const balances: WalletBalance[] = [
-        { currency_code: 'ARS', amount: user.email === 'richard@nexopay.com' ? 80000  : 150000 },
-        { currency_code: 'USD', amount: user.email === 'richard@nexopay.com' ? 200    : 500    },
-        { currency_code: 'EUR', amount: user.email === 'richard@nexopay.com' ? 150    : 300    },
-      ];
-      setWallet({ id: 'w4cae933-c80b-4a51-991d-795bcf54eb6d', user_id: user.id, balances });
+    try {
+      const data = await getWalletBalances();
+      setBalances(data);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.isUnauthorized()) {
+          // Sesión vencida — limpia estado y redirige a login
+          logout();
+          return;
+        }
+        setError(err.message);
+      } else {
+        setError('No se pudo cargar la billetera.');
+      }
+    } finally {
       setLoading(false);
-    }, 500);
+    }
+  }, [user, logout]);
 
-    return () => clearTimeout(timer);
-  }, [user]);
+  // Carga inicial y recarga cuando cambia el usuario autenticado
+  useEffect(() => {
+    void fetchBalances();
+  }, [fetchBalances]);
 
-  const simulateDeposit = async (currency: CurrencyCode, amount: number): Promise<boolean> => {
-    setError('');
-    setWallet((prev) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        balances: prev.balances.map((b) =>
-          b.currency_code === currency ? { ...b, amount: b.amount + amount } : b
-        ),
-      };
-    });
-    return true;
-  };
+  const updateBalance = useCallback((currency: CurrencyCode, delta: number) => {
+    setBalances((prev) =>
+      prev.map((b) =>
+        b.currency_code === currency ? { ...b, amount: b.amount + delta } : b
+      )
+    );
+  }, []);
 
   return (
-    <WalletContext.Provider value={{ wallet, setWallet, loading, error, simulateDeposit }}>
+    <WalletContext.Provider value={{ balances, loading, error, refetch: fetchBalances, updateBalance }}>
       {children}
     </WalletContext.Provider>
   );

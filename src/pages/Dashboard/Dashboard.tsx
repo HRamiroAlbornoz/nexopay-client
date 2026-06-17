@@ -8,7 +8,7 @@ import TransactionTimeline from '../../components/charts/TransactionTimeline/Tra
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { wallet, simulateDeposit } = useWallet();
+  const { balances, updateBalance } = useWallet();
   const { transactions, addTransaction } = useTransactions();
   const { rates } = useExchangeRate();
 
@@ -21,9 +21,9 @@ export default function Dashboard() {
   // Valor estimado total de la cartera en USD
   const assetDetails = useMemo(() => {
     let total = 0;
-    if (!wallet) return { list: [], totalUSD: 0 };
+    if (!balances || balances.length === 0) return { list: [], totalUSD: 0 };
 
-    const list = wallet.balances.map((balanceItem) => {
+    const list = balances.map((balanceItem) => {
       const rateInfo = rates.find((r) => r.symbol.toUpperCase() === balanceItem.currency_code);
       const priceInUSD = rateInfo ? rateInfo.current_price : 0;
       const valueUSD = balanceItem.amount * priceInUSD;
@@ -32,17 +32,17 @@ export default function Dashboard() {
     });
 
     return { list: list.sort((a, b) => b.valueUSD - a.valueUSD), totalUSD: total };
-  }, [wallet, rates]);
+  }, [balances, rates]);
 
   // Genera datos históricos de balance simulados a partir de transacciones
   const balanceChartData = useMemo((): BalanceDataPoint[] => {
-    if (!wallet) return [];
+    if (!balances || balances.length === 0) return [];
 
     const now = new Date();
     const points: BalanceDataPoint[] = [];
     const currentBalances = { ARS: 0, USD: 0, EUR: 0 };
 
-    wallet.balances.forEach((b) => {
+    balances.forEach((b) => {
       currentBalances[b.currency_code] = b.amount;
     });
 
@@ -63,7 +63,7 @@ export default function Dashboard() {
     }
 
     return points;
-  }, [wallet]);
+  }, [balances]);
 
   const handleDepositSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -73,19 +73,18 @@ export default function Dashboard() {
       setAlert({ message: 'Ingresa un monto válido mayor a cero.', type: 'warning' });
       return;
     }
-    const success = await simulateDeposit(depSymbol, amount);
-    if (success) {
-      await addTransaction({
-        type: 'buy',
-        currency_from: 'ARS',
-        currency_to: depSymbol,
-        amount_from: depSymbol === 'ARS' ? amount : amount * 900,
-        amount_to: amount,
-        exchange_rate: depSymbol === 'ARS' ? 1.0 : depSymbol === 'EUR' ? 1.0854 : 1.0,
-      });
-      setDepAmount('');
-      setAlert({ message: `¡Ingreso de ${amount} ${depSymbol} registrado con éxito!`, type: 'success' });
-    }
+    // Al no haber endpoint de depósito en el backend, simulamos solo visualmente
+    updateBalance(depSymbol, amount);
+    await addTransaction({
+      type: 'buy',
+      currency_from: 'ARS',
+      currency_to: depSymbol,
+      amount_from: depSymbol === 'ARS' ? amount : amount * 900,
+      amount_to: amount,
+      exchange_rate: depSymbol === 'ARS' ? 1.0 : depSymbol === 'EUR' ? 1.0854 : 1.0,
+    } as any);
+    setDepAmount('');
+    setAlert({ message: `¡Ingreso de ${amount} ${depSymbol} registrado con éxito! (Simulado)`, type: 'success' });
   };
 
   const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {

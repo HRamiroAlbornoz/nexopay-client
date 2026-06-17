@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useWallet } from '../../hooks/useWallet';
 
 export default function Wallet() {
-  const { wallet, setWallet } = useWallet();
+  const { balances, updateBalance } = useWallet();
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
   const [recipient, setRecipient] = useState('');
@@ -28,7 +28,7 @@ export default function Wallet() {
       return;
     }
 
-    const currentBalance = wallet?.balances.find((b) => b.currency_code === currency)?.amount || 0;
+    const currentBalance = balances.find((b) => b.currency_code === currency)?.amount || 0;
     if (transferAmount > currentBalance) {
       setAlert({ message: 'Saldo insuficiente para realizar esta transferencia.', type: 'error' });
       return;
@@ -38,14 +38,7 @@ export default function Wallet() {
     // Simulate transaction delay
     setTimeout(() => {
       // Deduct funds locally (immutable update via setWallet)
-      if (wallet) {
-        setWallet({
-          ...wallet,
-          balances: wallet.balances.map((b) =>
-            b.currency_code === currency ? { ...b, amount: b.amount - transferAmount } : b
-          ),
-        });
-      }
+      updateBalance(currency, -transferAmount);
       setAlert({
         message: `¡Transferencia de ${transferAmount} ${currency} enviada con éxito a ${recipient}!`,
         type: 'success',
@@ -86,7 +79,7 @@ export default function Wallet() {
         <div className="dashboard-sub-panel">
           <div className="dashboard-section-title">Saldos Disponibles</div>
           <div className="currency-list">
-            {wallet?.balances.map((b) => (
+            {balances.map((b) => (
               <div key={b.currency_code} className="currency-card-neon">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span className="symbol-tag">{b.currency_code}</span>

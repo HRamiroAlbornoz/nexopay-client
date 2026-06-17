@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { sendChatMessage, type ChatMessage } from '../../api-calls/chatbot/chatbot.post';
+import { ApiError } from '../../lib/apiError';
 import './ChatWidget.css';
 
 // ─── Types ────────────────────────────────────────
@@ -130,14 +131,40 @@ export default function ChatWidget() {
         ...prev,
         { id: generateId(), role: 'assistant', content: reply, timestamp: new Date() },
       ]);
-    } catch {
-      setIsOnline(false);
+    } catch (error) {
+      setIsOnline(true); // Mantener online por defecto para errores de negocio
+      let errorMessage = '⚠️ Ocurrió un error inesperado. Intenta nuevamente.';
+
+      if (error instanceof ApiError) {
+        switch (error.code) {
+          case 'CHAT_IN_PROGRESS':
+            errorMessage = '⚠️ Ya hay un mensaje procesándose. Espera la respuesta por favor.';
+            break;
+          case 'TOO_MANY_REQUESTS':
+            errorMessage = '⚠️ Has alcanzado el límite de 20 mensajes cada 15 minutos. Intenta más tarde.';
+            break;
+          case 'CHATBOT_BLOCKED':
+            errorMessage = '⚠️ No pude responder eso, ¿podés reformularlo?';
+            break;
+          case 'CHATBOT_UNAVAILABLE':
+            errorMessage = '⚠️ El asistente no está disponible en este momento, probá de nuevo en un rato.';
+            setIsOnline(false);
+            break;
+          case 'VALIDATION_ERROR':
+            errorMessage = '⚠️ El mensaje ingresado no es válido (vacío o demasiado largo).';
+            break;
+        }
+      } else {
+        setIsOnline(false);
+        errorMessage = '⚠️ No pude conectarme al servidor. Verifica tu conexión e intenta de nuevo.';
+      }
+
       setMessages((prev) => [
         ...prev,
         {
           id: generateId(),
           role: 'assistant',
-          content: '⚠️ No pude conectarme al servidor. Verifica tu conexión e intenta de nuevo.',
+          content: errorMessage,
           timestamp: new Date(),
         },
       ]);

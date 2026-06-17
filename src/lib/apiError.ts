@@ -1,9 +1,9 @@
 export class ApiError extends Error {
-  public code?: string;
-  public details?: unknown;
+  public code?: string | undefined;
+  public details?: unknown | undefined;
   public status: number;
 
-  constructor(params: { message: string; code?: string; details?: unknown; status: number }) {
+  constructor(params: { message: string; code?: string | undefined; details?: unknown | undefined; status: number }) {
     super(params.message);
     this.name = 'ApiError';
     this.code = params.code;
@@ -11,14 +11,22 @@ export class ApiError extends Error {
     this.status = params.status;
     Object.setPrototypeOf(this, ApiError.prototype);
   }
+
+  /** Devuelve true si el error indica sesión vencida o ausente. */
+  isUnauthorized(): boolean {
+    return this.status === 401;
+  }
 }
 
 /**
  * Parsea la respuesta de la API.
- * - Si `res.ok` devuelve el body parseado (o texto si no es JSON).
+ * - Si `res.ok` devuelve el body parseado.
  * - Si no, lanza `ApiError` con `code`, `message`, `details` y `status`.
+ *
+ * Los errores 401 (MISSING_TOKEN / INVALID_TOKEN) se propagan normalmente:
+ * el interceptor global en AuthContext los captura y redirige a login.
  */
-export async function parseApiResponse(res: Response): Promise<any> {
+export async function parseApiResponse(res: Response): Promise<unknown> {
   const text = await res.text().catch(() => '');
   let raw: unknown = null;
   try {
@@ -31,9 +39,10 @@ export async function parseApiResponse(res: Response): Promise<any> {
     return raw ?? (text === '' ? null : text);
   }
 
-  const code = raw && typeof raw === 'object' && 'code' in (raw as any) ? (raw as any).code : undefined;
-  const message = raw && typeof raw === 'object' && 'message' in (raw as any) ? (raw as any).message : `Error ${res.status}`;
-  const details = raw && typeof raw === 'object' && 'details' in (raw as any) ? (raw as any).details : undefined;
+  const body = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const code    = typeof body['code']    === 'string' ? body['code']    : undefined;
+  const message = typeof body['message'] === 'string' ? body['message'] : `Error ${res.status}`;
+  const details = 'details' in body ? body['details'] : undefined;
 
   throw new ApiError({ message, code, details, status: res.status });
 }
