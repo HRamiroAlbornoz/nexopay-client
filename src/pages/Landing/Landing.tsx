@@ -28,32 +28,52 @@ export default function Landing() {
 
   /* Inicializa Google Identity (solo renderiza el botón nativo en el ref) */
   useEffect(() => {
-    if (!googleReady || !googleClientId || !(window as any).google?.accounts?.id) return;
+    if (!googleReady || !googleClientId) return;
+
+    // Extra runtime guard: ensure the SDK methods actually exist
+    if (
+      typeof window.google?.accounts?.id?.initialize !== 'function' ||
+      typeof window.google?.accounts?.id?.renderButton !== 'function'
+    ) {
+      console.warn(
+        '[Nexopay] Google GSI SDK flagged as ready but methods are missing. ' +
+        'Will retry on next googleReady change.',
+      );
+      return;
+    }
+
     try {
-      (window as any).google.accounts.id.initialize({
+      window.google.accounts.id.initialize({
         client_id: googleClientId,
-        callback: async (response: any) => {
+        // ⚠️  use_fedcm is intentionally OMITTED:
+        //   FedCM is experimental and silently blocks the auth flow in many
+        //   environments (localhost, some browsers, strict COOP headers).
+        //   Letting GSI decide the best flow avoids invisible failures.
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        callback: async (response) => {
+          console.log('[Nexopay] Google credential received, processing...');
           setFormStatus('loading');
           setAlert(null);
           try {
             const loggedUser = await loginOrRegisterWithGoogle(response.credential);
             login(loggedUser);
             navigate('/dashboard', { replace: true });
-          } catch (err: any) {
-            setAlert({ message: err.message || 'Error al iniciar sesión con Google', type: 'error' });
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Error al iniciar sesión con Google';
+            console.error('[Nexopay] Google login error:', err);
+            setAlert({ message: msg, type: 'error' });
           } finally {
             setFormStatus('idle');
           }
         },
-        auto_select: false,
-        cancel_on_tap_outside: true,
-        use_fedcm: true,
       });
 
       /* Renderiza el botón oficial de Google en el contenedor ref */
-      if (googleButtonRef.current) {
-        googleButtonRef.current.innerHTML = '';
-        (window as any).google.accounts.id.renderButton(googleButtonRef.current, {
+      const container = googleButtonRef.current;
+      if (container) {
+        container.innerHTML = '';
+        window.google.accounts.id.renderButton(container, {
           theme: 'filled_black',
           size: 'large',
           shape: 'rectangular',
@@ -61,19 +81,24 @@ export default function Landing() {
           width: 340,
           locale: 'es',
         });
+        console.log('[Nexopay] Google Sign-In button rendered successfully.');
+      } else {
+        console.warn('[Nexopay] googleButtonRef.current is null — button container not mounted yet.');
       }
     } catch (err) {
-      console.error('Google Sign-In init error:', err);
+      console.error('[Nexopay] Google Sign-In init error:', err);
     }
-  }, [googleReady, googleClientId, activeTab, login, navigate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- login and navigate are stable refs; activeTab triggers re-render of the button container
+  }, [googleReady, googleClientId, activeTab]);
+
 
   /* Botón de respaldo cuando Google SDK no está listo */
   const handleGoogleFallback = () => {
-    if (!googleClientId || !(window as any).google?.accounts?.id) {
+    if (!googleClientId || !window.google?.accounts?.id) {
       setAlert({ message: 'Google login no está disponible en este momento.', type: 'warning' });
       return;
     }
-    (window as any).google.accounts.id.prompt();
+    window.google.accounts.id.prompt();
   };
 
   /* Inicio de sesión demo con credenciales de seed y fallback a mock */
@@ -85,7 +110,7 @@ export default function Landing() {
       const loggedUser = await loginUser({ email: 'richard@nexopay.com', password: 'Test1234' });
       login(loggedUser);
       navigate('/dashboard', { replace: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('Real demo login failed, falling back to mock login:', err);
       // Fallback local en caso de que el backend no responda o no esté sembrado
       const mockUser = {
@@ -135,8 +160,9 @@ export default function Landing() {
         setFirstName('');
         setLastName('');
       }
-    } catch (err: any) {
-      setAlert({ message: err.message || 'Ocurrió un error en el servidor', type: 'error' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Ocurrió un error en el servidor';
+      setAlert({ message: msg, type: 'error' });
     } finally {
       setFormStatus('idle');
     }

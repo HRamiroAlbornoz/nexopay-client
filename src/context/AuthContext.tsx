@@ -1,9 +1,10 @@
-import { createContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { z } from 'zod';
 import { API_BASE_URL } from '../lib/apiConfig';
 
 const SESSION_HINT_KEY = 'nexopay_session';
 
+// eslint-disable-next-line react-refresh/only-export-components -- Zod schema is exported for reuse in other modules; not a React component
 export const userSchema = z.object({
   id: z.string().uuid(),
   email: z.email(),
@@ -24,41 +25,96 @@ export interface AuthContextValue {
   googleClientId: string | undefined;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- Context and Provider are intentionally co-located; Vite HMR limitation
 export const AuthContext = createContext<AuthContextValue | null>(null);
+
+/** Validates that the Google GSI SDK is fully operational */
+function isGoogleReady(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.google !== 'undefined' &&
+    typeof window.google?.accounts?.id?.initialize === 'function' &&
+    typeof window.google?.accounts?.id?.renderButton === 'function'
+  );
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [googleReady, setGoogleReady] = useState(false);
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
-  // Load Google Identity Services script
+  // Read once at mount — VITE_GOOGLE_CLIENT_ID is now typed in vite-env.d.ts
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || undefined;
+
+  // ── Load Google Identity Services script ────────────────────────────────────
   useEffect(() => {
-    if (!googleClientId) return;
-
-    // Check if script is already present
-    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-    if (existing) {
-      if ((window as any).google?.accounts?.id) {
-        setGoogleReady(true);
-      } else {
-        existing.addEventListener('load', () => setGoogleReady(true), { once: true });
-      }
+    if (!googleClientId) {
+      // No Client ID configured — skip silently (no alert spam)
       return;
     }
 
+    // Already loaded and operational
+    if (isGoogleReady()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- guard-clause: sets state once synchronously and returns; mirrors session-check pattern
+      setGoogleReady(true);
+      return;
+    }
+
+    const GSI_SRC = 'https://accounts.google.com/gsi/client';
+
+    // Script already injected but may not have fired onload yet
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${GSI_SRC}"]`);
+    if (existing) {
+      // Poll until operational (handles cases where onload already fired)
+      const poll = setInterval(() => {
+        if (isGoogleReady()) {
+          clearInterval(poll);
+          setGoogleReady(true);
+        }
+      }, 100);
+      // Stop polling after 10 s to avoid memory leaks
+      const timeout = setTimeout(() => clearInterval(poll), 10_000);
+      return () => {
+        clearInterval(poll);
+        clearTimeout(timeout);
+      };
+    }
+
+    // Inject fresh script
     const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
+    script.src = GSI_SRC;
     script.async = true;
     script.defer = true;
-    script.onload = () => setGoogleReady(true);
-    script.onerror = () => setGoogleReady(false);
+
+    script.onload = () => {
+      // The SDK may need a microtask to fully initialize after onload
+      const poll = setInterval(() => {
+        if (isGoogleReady()) {
+          clearInterval(poll);
+          setGoogleReady(true);
+        }
+      }, 50);
+      // Abort after 8 s
+      setTimeout(() => clearInterval(poll), 8_000);
+    };
+
+    script.onerror = () => {
+      console.error(
+        '[Nexopay] Google GSI script failed to load. ' +
+        'Check network connectivity and Content Security Policy headers.',
+      );
+      // googleReady stays false → fallback button will render
+    };
+
     document.head.appendChild(script);
+
+    // No cleanup needed for the script itself (intentional singleton)
   }, [googleClientId]);
 
-  // Session check on mount
+  // ── Session check on mount ──────────────────────────────────────────────────
   useEffect(() => {
     if (!localStorage.getItem(SESSION_HINT_KEY)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- guard-clause: sets state once and returns immediately; no cascading renders
       setStatus('unauthenticated');
       return;
     }
@@ -100,20 +156,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, []);
 
-  function login(newUser: User): void {
+  const login = useCallback((newUser: User): void => {
     localStorage.setItem(SESSION_HINT_KEY, '1');
     setUser(newUser);
     setStatus('authenticated');
-  }
+  }, []);
 
-  function logout(): void {
+  const logout = useCallback((): void => {
     localStorage.removeItem(SESSION_HINT_KEY);
     setUser(null);
     setStatus('unauthenticated');
-    if ((window as any).google?.accounts?.id) {
-      (window as any).google.accounts.id.disableAutoSelect();
+    try {
+      if (isGoogleReady()) {
+        window.google?.accounts?.id?.disableAutoSelect();
+      }
+    } catch {
+      // Swallow GSI errors during logout — non-critical
     }
-  }
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, status, login, logout, googleReady, googleClientId }}>
@@ -121,4 +181,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
