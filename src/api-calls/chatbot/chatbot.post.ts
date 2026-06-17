@@ -10,6 +10,8 @@
 //   • Verificación de sesión contra Railway (/auth/me)
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { parseApiResponse } from '../../lib/apiError';
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -36,11 +38,6 @@ export async function sendChatMessage(
     body:        JSON.stringify({ message, history }),
   });
 
-  if (!respuesta.ok) {
-    const error = (await respuesta.json().catch(() => ({}))) as { message?: string; code?: string };
-    throw new Error(error.message ?? `Error ${respuesta.status}`);
-  }
-
-  const datos = (await respuesta.json()) as { reply?: string; message?: string };
+  const datos = (await parseApiResponse(respuesta)) as { reply?: string; message?: string };
   return datos.reply ?? datos.message ?? 'Sin respuesta del asistente.';
 }

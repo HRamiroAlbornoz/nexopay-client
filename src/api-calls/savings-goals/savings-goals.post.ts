@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '../../lib/apiConfig';
 import type { CurrencyCode } from '../../types/currency.types';
 import { savingsGoalSchema } from '../../types/savings-goal.types';
+import { parseApiResponse } from '../../lib/apiError';
 
 /**
  * POST /api/savings-goals
@@ -18,11 +19,8 @@ export async function createSavingsGoal(payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(err.message ?? `Error ${res.status}`);
-  }
-  const raw: unknown = await res.json();
+
+  const raw: unknown = await parseApiResponse(res);
   return savingsGoalSchema.parse(raw);
 }
 
@@ -40,11 +38,8 @@ export async function updateSavingsGoal(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(err.message ?? `Error ${res.status}`);
-  }
-  const raw: unknown = await res.json();
+
+  const raw: unknown = await parseApiResponse(res);
   return savingsGoalSchema.parse(raw);
 }
 
@@ -56,9 +51,7 @@ export async function deleteSavingsGoal(id: string) {
     method: 'DELETE',
     credentials: 'include',
   });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(err.message ?? `Error ${res.status}`);
-  }
+
+  await parseApiResponse(res);
   return true;
 }

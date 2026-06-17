@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '../../lib/apiConfig';
 import type { CurrencyCode } from '../../types/currency.types';
 import { sharedExpenseSchema } from '../../types/shared-expense.types';
+import { parseApiResponse } from '../../lib/apiError';
 
 /**
  * POST /api/shared-expenses
@@ -18,11 +19,8 @@ export async function createSharedExpense(payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(err.message ?? `Error ${res.status}`);
-  }
-  const raw: unknown = await res.json();
+
+  const raw: unknown = await parseApiResponse(res);
   return sharedExpenseSchema.parse(raw);
 }
 
@@ -37,10 +35,7 @@ export async function settleSharedExpense(id: string, amount_paid: number) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ amount_paid }),
   });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(err.message ?? `Error ${res.status}`);
-  }
-  const raw: unknown = await res.json();
+
+  const raw: unknown = await parseApiResponse(res);
   return sharedExpenseSchema.parse(raw);
 }

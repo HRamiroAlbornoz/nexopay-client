@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { API_BASE_URL } from '../../lib/apiConfig';
+import { parseApiResponse } from '../../lib/apiError';
 import type { CurrencyCode } from '../../types/currency.types';
 
 const transactionResponseSchema = z.object({
@@ -21,11 +22,8 @@ async function postTransaction(endpoint: string, body: Record<string, unknown>) 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(err.message ?? `Error ${res.status}`);
-  }
-  const raw: unknown = await res.json();
+
+  const raw: unknown = await parseApiResponse(res);
   return transactionResponseSchema.parse(raw);
 }
 
@@ -78,11 +76,8 @@ export async function createTransfer(payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(err.message ?? `Error ${res.status}`);
-  }
+
+  const raw: unknown = await parseApiResponse(res);
   const transferResponseSchema = z.object({ ok: z.boolean() });
-  const raw: unknown = await res.json();
   return transferResponseSchema.parse(raw);
 }
