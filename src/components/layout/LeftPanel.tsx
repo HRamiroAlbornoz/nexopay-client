@@ -13,7 +13,7 @@ const MENU_ITEMS = [
 
 export default function LeftPanel() {
   const { user } = useAuth();
-  const { balances } = useWallet();
+  const { wallet } = useWallet();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -81,7 +81,7 @@ export default function LeftPanel() {
           <div className="balances-section" style={{ marginTop: '20px' }}>
             <div className="balances-title">Billetera Activa</div>
             <div className="balances-grid">
-              {balances.map((b) => (
+              {wallet?.balances.map((b) => (
                 <div key={b.currency_code} className="balance-row">
                   <span className="balance-symbol">{b.currency_code}</span>
                   <span className="balance-value">

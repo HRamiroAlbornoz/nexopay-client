@@ -1,55 +1,78 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from './useAuth';
-import { getTransactions, type TransactionFromApi } from '../api-calls/transactions/transactions.get';
-import { ApiError } from '../lib/apiError';
-import type { CreateTransactionPayload } from '../types/transaction.types';
+import type { Transaction, CreateTransactionPayload } from '../types/transaction.types';
 
-// Export type alias for compatibility with existing components
-export type Transaction = TransactionFromApi;
+// Re-export for backward compatibility
+export type { Transaction };
 
 export function useTransactions() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  const fetchTransactions = useCallback(async () => {
-    if (!user) {
-      setTransactions([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      // Obtenemos un límite amplio para el frontend por ahora,
-      // idealmente se paginaría desde la vista (Infinite Scroll o similar)
-      const data = await getTransactions(1, 100);
-      setTransactions(data.transactions);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.isUnauthorized()) {
-          logout();
-          return;
-        }
-        setError(err.message);
-      } else {
-        setError('No se pudo cargar el historial de transacciones.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [user, logout]);
+  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
+  // 1. Crear una ruta `GET /api/transactions` que una las billeteras y transacciones para retornar el historial del usuario.
+  // 2. Crear las rutas `POST /api/transactions/buy`, `POST /api/transactions/sell` y `/exchange`.
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- setState is called asynchronously inside fetchTransactions (after await), not synchronously in the effect
-    void fetchTransactions();
-  }, [fetchTransactions]);
+    if (!user) return;
 
-  // Actualización optimista cuando se realiza una transacción
-  const addTransactionOptimistic = useCallback((tx: CreateTransactionPayload) => {
+    const timer = setTimeout(() => {
+      const mockLogs: Transaction[] = [
+        {
+          id: '1t',
+          type: 'buy',
+          currency_from: 'ARS',
+          currency_to: 'USD',
+          amount_from: 50000,
+          amount_to: 50,
+          exchange_rate: 0.001,
+          created_at: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
+          desc: 'Compra de USD con saldo ARS',
+        },
+        {
+          id: '2t',
+          type: 'exchange',
+          currency_from: 'USD',
+          currency_to: 'EUR',
+          amount_from: 22,
+          amount_to: 20,
+          exchange_rate: 0.909,
+          created_at: new Date(Date.now() - 20 * 24 * 3600 * 1000).toISOString(),
+          desc: 'Conversión de saldo USD a EUR',
+        },
+        {
+          id: '3t',
+          type: 'transfer_out',
+          currency_from: 'ARS',
+          currency_to: 'ARS',
+          amount_from: 10000,
+          amount_to: 10000,
+          exchange_rate: 1.0,
+          created_at: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
+          desc: 'Transferencia enviada a Hernán Albornoz',
+        },
+        {
+          id: '4t',
+          type: 'sell',
+          currency_from: 'EUR',
+          currency_to: 'ARS',
+          amount_from: 50,
+          amount_to: 55000,
+          exchange_rate: 1100,
+          created_at: new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString(),
+          desc: 'Venta de EUR a saldo ARS',
+        },
+      ];
+
+      setTransactions(user.email === 'richard@nexopay.com' ? mockLogs.slice(1) : mockLogs);
+      setLoading(false);
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [user]);
+
+  const addTransaction = async (tx: CreateTransactionPayload) => {
     const newTx: Transaction = {
       ...tx,
       id: Math.random().toString(36).substring(7),
@@ -61,7 +84,8 @@ export function useTransactions() {
     };
 
     setTransactions((prev) => [newTx, ...prev]);
-  }, []);
+    return true;
+  };
 
-  return { transactions, loading, error, refetch: fetchTransactions, addTransaction: addTransactionOptimistic };
+  return { transactions, loading, addTransaction };
 }

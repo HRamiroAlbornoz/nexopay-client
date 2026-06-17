@@ -1,70 +1,51 @@
-import { z } from 'zod';
 import { API_BASE_URL } from '../../lib/apiConfig';
-import { savingsGoalSchema } from '../../types/savings-goal.types';
-import { parseApiResponse } from '../../lib/apiError';
 import type { CurrencyCode } from '../../types/currency.types';
-
-// ─── Esquema de respuesta fund ───────────────────────────────────────────────
-// POST /:id/fund devuelve { goal, transaction }
-const transactionSchema = z.object({
-  id:            z.string(),
-  type:          z.enum(['buy', 'sell', 'exchange', 'transfer_in', 'transfer_out']),
-  currency_from: z.enum(['ARS', 'USD', 'EUR']),
-  currency_to:   z.enum(['ARS', 'USD', 'EUR']),
-  amount_from:   z.number(),
-  amount_to:     z.number(),
-  exchange_rate: z.number(),
-  created_at:    z.string(),
-  desc:          z.string().optional(),
-});
-
-const fundResponseSchema = z.object({
-  goal:        savingsGoalSchema,
-  transaction: transactionSchema,
-});
-
-// ─── Endpoints ───────────────────────────────────────────────────────────────
+import { savingsGoalSchema } from '../../types/savings-goal.types';
 
 /**
  * POST /api/savings-goals
- * Body: { title, target_amount, currency_code, target_date? }
  */
 export async function createSavingsGoal(payload: {
-  title:         string;
+  title: string;
   target_amount: number;
+  current_amount: number;
   currency_code: CurrencyCode;
-  target_date?:  string | null;
+  target_date: string | null;
 }) {
   const res = await fetch(`${API_BASE_URL}/savings-goals`, {
-    method:      'POST',
+    method: 'POST',
     credentials: 'include',
-    headers:     { 'Content-Type': 'application/json' },
-    body:        JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
   });
-
-  const raw = await parseApiResponse(res);
-  // Backend devuelve { goal }
-  const wrapper = z.object({ goal: savingsGoalSchema }).parse(raw);
-  return wrapper.goal;
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(err.message ?? `Error ${res.status}`);
+  }
+  const raw: unknown = await res.json();
+  return savingsGoalSchema.parse(raw);
 }
 
 /**
- * POST /api/savings-goals/:id/fund
- * Contribuye un monto a una meta activa. Descuenta del balance de la moneda.
- * Body: { amount }
- * Respuesta: { goal, transaction }
- * Errores: 404 GOAL_NOT_FOUND, 422 GOAL_NOT_ACTIVE / AMOUNT_EXCEEDS_REMAINING / INSUFFICIENT_BALANCE
+ * PATCH /api/savings-goals/:id
+ * Actualiza el monto actual (contribución) o el estado de una meta.
  */
-export async function fundSavingsGoal(id: string, amount: number) {
-  const res = await fetch(`${API_BASE_URL}/savings-goals/${id}/fund`, {
-    method:      'POST',
+export async function updateSavingsGoal(
+  id: string,
+  payload: { current_amount?: number; status?: 'active' | 'completed' | 'cancelled' }
+) {
+  const res = await fetch(`${API_BASE_URL}/savings-goals/${id}`, {
+    method: 'PATCH',
     credentials: 'include',
-    headers:     { 'Content-Type': 'application/json' },
-    body:        JSON.stringify({ amount }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
   });
-
-  const raw = await parseApiResponse(res);
-  return fundResponseSchema.parse(raw);
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(err.message ?? `Error ${res.status}`);
+  }
+  const raw: unknown = await res.json();
+  return savingsGoalSchema.parse(raw);
 }
 
 /**
@@ -72,10 +53,12 @@ export async function fundSavingsGoal(id: string, amount: number) {
  */
 export async function deleteSavingsGoal(id: string) {
   const res = await fetch(`${API_BASE_URL}/savings-goals/${id}`, {
-    method:      'DELETE',
+    method: 'DELETE',
     credentials: 'include',
   });
-
-  await parseApiResponse(res);
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(err.message ?? `Error ${res.status}`);
+  }
   return true;
 }
