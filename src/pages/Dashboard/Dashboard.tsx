@@ -10,6 +10,7 @@ import { isPositiveTransaction, getTransactionTypeLabel } from '../../lib/transa
 import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
 import BalanceChart, { type BalanceDataPoint } from '../../components/charts/BalanceChart/BalanceChart';
 import TransactionTimeline from '../../components/charts/TransactionTimeline/TransactionTimeline';
+import Toast, { type ToastAlert } from '../../components/Toast/Toast';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -20,13 +21,16 @@ export default function Dashboard() {
   const [depAmount, setDepAmount] = useState('');
   const [depSymbol, setDepSymbol] = useState<'USD' | 'EUR'>('USD');
   const [isBuying, setIsBuying] = useState(false);
-  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+  const [alert, setAlert] = useState<ToastAlert | null>(null);
   const [balanceHistory, setBalanceHistory] = useState<BalanceDataPoint[]>([]);
 
   useEffect(() => {
     getBalanceHistory(7)
       .then(setBalanceHistory)
-      .catch(() => setBalanceHistory([]));
+      .catch((err) => {
+        console.error('No se pudo cargar el historial de balances.', err);
+        setBalanceHistory([]);
+      });
   }, []);
 
   // Valor estimado total de la cartera en USD
@@ -104,17 +108,7 @@ export default function Dashboard() {
         <div className="badge">Consola Principal</div>
       </div>
 
-      {alert && (
-        <div role="alert" aria-live="assertive" className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
-          <div className="toast-content">
-            <span className="toast-title" style={{ fontSize: '10px' }}>
-              {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : 'Advertencia'}
-            </span>
-            <span className="toast-message" style={{ fontSize: '12px' }}>{alert.message}</span>
-          </div>
-          <button type="button" className="toast-close" onClick={() => setAlert(null)} aria-label="Cerrar">&times;</button>
-        </div>
-      )}
+      {alert && <Toast alert={alert} onClose={() => setAlert(null)} />}
 
       {/* Stats */}
       <div className="dashboard-grid">

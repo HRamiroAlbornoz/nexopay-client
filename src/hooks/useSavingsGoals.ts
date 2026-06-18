@@ -51,16 +51,19 @@ export function useSavingsGoals() {
     target_amount: number;
     currency_code: CurrencyCode;
     target_date: string | null;
-  }): Promise<boolean> => {
+  }): Promise<{ ok: true; goal: SavingsGoal } | { ok: false; message: string }> => {
     try {
       const goal = await createSavingsGoal(payload);
       setGoals((prev) => [goal, ...prev]);
-      return true;
+      return { ok: true, goal };
     } catch (err) {
-      if (err instanceof ApiError && err.isUnauthorized()) {
-        logout();
+      if (err instanceof ApiError) {
+        if (err.isUnauthorized()) {
+          logout();
+        }
+        return { ok: false, message: err.message };
       }
-      return false;
+      return { ok: false, message: 'No se pudo crear el objetivo.' };
     }
   }, [logout]);
 

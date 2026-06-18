@@ -10,6 +10,7 @@ import {
 import { ApiError } from '../../lib/apiError';
 import { isPositiveTransaction, getTransactionTypeLabel } from '../../lib/transactionLabels';
 import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
+import Toast, { type ToastAlert } from '../../components/Toast/Toast';
 import type { CurrencyCode } from '../../types/currency.types';
 
 export default function Transactions() {
@@ -20,7 +21,7 @@ export default function Transactions() {
   const [fromCurrency, setFromCurrency] = useState<CurrencyCode>('ARS');
   const [toCurrency, setToCurrency] = useState<CurrencyCode>('USD');
   const [amount, setAmount] = useState('');
-  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+  const [alert, setAlert] = useState<ToastAlert | null>(null);
   const [isConverting, setIsConverting] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -57,6 +58,9 @@ export default function Transactions() {
 
     setIsConverting(true);
     try {
+      // El guard "fromCurrency === toCurrency" de arriba ya garantiza que, en esta
+      // rama, toCurrency no puede ser 'ARS' a la vez que fromCurrency es 'ARS' (y viceversa
+      // en la rama de abajo); el "as" solo le aclara al compilador esa exclusión mutua.
       const transaction =
         fromCurrency === 'ARS'
           ? await createBuyTransaction({ currency_to: toCurrency as Exclude<CurrencyCode, 'ARS'>, amount_from: convertAmount })
@@ -103,19 +107,7 @@ export default function Transactions() {
         <div className="badge">Registros de Fondos</div>
       </div>
 
-      {alert && (
-        <div role="alert" aria-live="assertive" className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
-          <div className="toast-content">
-            <span className="toast-title" style={{ fontSize: '10px' }}>
-              {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : 'Advertencia'}
-            </span>
-            <span className="toast-message" style={{ fontSize: '12px' }}>
-              {alert.message}
-            </span>
-          </div>
-          <button type="button" className="toast-close" onClick={() => setAlert(null)} aria-label="Cerrar">&times;</button>
-        </div>
-      )}
+      {alert && <Toast alert={alert} onClose={() => setAlert(null)} />}
 
       <div className="dashboard-content-split">
         {/* Logs Table */}
