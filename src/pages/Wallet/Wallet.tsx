@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useWallet } from '../../hooks/useWallet';
+import { createTransfer } from '../../api-calls/transactions/transactions.post';
+import { ApiError } from '../../lib/apiError';
 
 export default function Wallet() {
   const { balances, updateBalance } = useWallet();
@@ -8,10 +10,6 @@ export default function Wallet() {
   const [recipient, setRecipient] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
-
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // - Ruta de transferencia requerida: Implementar la ruta `POST /api/wallet/transfer` que reciba { recipient_email, currency_code, amount },
-  //   verifique que el emisor tenga fondos suficientes, reste de su saldo y sume al del destinatario.
 
   const handleTransfer = async (e: FormEvent) => {
     e.preventDefault();
@@ -22,22 +20,25 @@ export default function Wallet() {
       setAlert({ message: 'Ingresa un monto válido mayor a cero.', type: 'warning' });
       return;
     }
-
     if (!recipient) {
       setAlert({ message: 'Por favor, ingresa el correo del destinatario.', type: 'warning' });
       return;
     }
 
-    const currentBalance = balances.find((b) => b.currency_code === currency)?.amount || 0;
+    const currentBalance = balances.find((b) => b.currency_code === currency)?.amount ?? 0;
     if (transferAmount > currentBalance) {
       setAlert({ message: 'Saldo insuficiente para realizar esta transferencia.', type: 'error' });
       return;
     }
 
     setIsSubmitting(true);
-    // Simulate transaction delay
-    setTimeout(() => {
-      // Deduct funds locally (immutable update via setWallet)
+    try {
+      await createTransfer({
+        recipient_email: recipient,
+        currency_code: currency,
+        amount: transferAmount,
+      });
+      // Actualización optimista del balance local
       updateBalance(currency, -transferAmount);
       setAlert({
         message: `¡Transferencia de ${transferAmount} ${currency} enviada con éxito a ${recipient}!`,
@@ -45,8 +46,18 @@ export default function Wallet() {
       });
       setAmount('');
       setRecipient('');
+    } catch (err) {
+      let msg = 'Error al procesar la transferencia.';
+      if (err instanceof ApiError) {
+        if (err.code === 'INSUFFICIENT_BALANCE') msg = 'Saldo insuficiente en el servidor.';
+        else if (err.code === 'RECIPIENT_NOT_FOUND') msg = 'No existe ningún usuario con ese correo en Nexopay.';
+        else if (err.code === 'INVALID_TRANSFER') msg = 'No puedes transferirte fondos a ti mismo.';
+        else msg = err.message;
+      }
+      setAlert({ message: msg, type: 'error' });
+    } finally {
       setIsSubmitting(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -110,6 +121,7 @@ export default function Wallet() {
                 onChange={(e) => setRecipient(e.target.value)}
                 className="neon-input"
                 required
+                autoComplete="email"
               />
             </div>
             <div className="form-group">
