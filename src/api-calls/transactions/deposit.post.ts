@@ -15,5 +15,6 @@ export async function createStripeCheckout(payload: CreateCheckoutPayload): Prom
     body: JSON.stringify(payload),
   });
 
-  return parseApiResponse(res);
+  const data = await parseApiResponse(res);
+  return data as { url: string };
 }

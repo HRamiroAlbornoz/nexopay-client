@@ -47,7 +47,7 @@ export default function Dashboard() {
             amount_from: amount,
             amount_to: amount,
             exchange_rate: 1.0,
-          }).catch(console.error);
+          });
         } catch (err) {
           console.error('No se pudo restaurar el depósito pendiente', err);
         }
