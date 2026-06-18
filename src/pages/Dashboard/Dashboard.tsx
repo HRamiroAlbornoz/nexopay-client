@@ -1,10 +1,12 @@
-import { useState, useMemo, type FormEvent } from 'react';
+import { useState, useMemo, useEffect, type FormEvent } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useWallet } from '../../hooks/useWallet';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useExchangeRate } from '../../hooks/useExchangeRate';
 import BalanceChart, { type BalanceDataPoint } from '../../components/charts/BalanceChart/BalanceChart';
 import TransactionTimeline from '../../components/charts/TransactionTimeline/TransactionTimeline';
+import { createStripeCheckout } from '../../api-calls/transactions/deposit.post';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -14,9 +16,53 @@ export default function Dashboard() {
 
   const [depAmount, setDepAmount] = useState('');
   const [depSymbol, setDepSymbol] = useState<'ARS' | 'USD' | 'EUR'>('USD');
+  const [isDepositing, setIsDepositing] = useState(false);
   const [documentStatus, setDocumentStatus] = useState('Pendiente');
   const [isUploading, setIsUploading] = useState(false);
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Escuchar si venimos redirigidos desde un pago exitoso de Stripe
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const sessionId = params.get('session_id');
+    const canceled = params.get('canceled');
+
+    if (sessionId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- alerta de un solo uso tras redirección
+      setAlert({ message: '¡Pago recibido! Tu depósito se ha procesado con éxito en Stripe.', type: 'success' });
+      
+      // Simulación optimista: aplicamos el saldo localmente ya que el Webhook real aún no está en Railway
+      const pendingStr = sessionStorage.getItem('pending_deposit');
+      if (pendingStr) {
+        try {
+          const { amount, currency } = JSON.parse(pendingStr);
+          updateBalance(currency, amount);
+          addTransaction({
+            type: 'transfer_in',
+            currency_from: currency,
+            currency_to: currency,
+            amount_from: amount,
+            amount_to: amount,
+            exchange_rate: 1.0,
+          }).catch(console.error);
+        } catch (err) {
+          console.error('No se pudo restaurar el depósito pendiente', err);
+        }
+        sessionStorage.removeItem('pending_deposit');
+      }
+
+      // Limpiamos la URL para no repetir el alert si recarga
+      navigate('/dashboard', { replace: true });
+    } else if (canceled) {
+      sessionStorage.removeItem('pending_deposit');
+       
+      setAlert({ message: 'El proceso de pago fue cancelado.', type: 'warning' });
+      navigate('/dashboard', { replace: true });
+    }
+  }, [location.search, navigate, updateBalance, addTransaction]);
 
   // Valor estimado total de la cartera en USD
   const assetDetails = useMemo(() => {
@@ -91,18 +137,34 @@ export default function Dashboard() {
       setAlert({ message: 'Ingresa un monto válido mayor a cero.', type: 'warning' });
       return;
     }
-    // Al no haber endpoint de depósito en el backend, simulamos solo visualmente
-    updateBalance(depSymbol, amount);
-    await addTransaction({
-      type: 'buy',
-      currency_from: 'ARS',
-      currency_to: depSymbol,
-      amount_from: depSymbol === 'ARS' ? amount : amount * 900,
-      amount_to: amount,
-      exchange_rate: depSymbol === 'ARS' ? 1.0 : depSymbol === 'EUR' ? 1.0854 : 1.0,
-    });
-    setDepAmount('');
-    setAlert({ message: `¡Ingreso de ${amount} ${depSymbol} registrado con éxito! (Simulado)`, type: 'success' });
+
+    if (!user) {
+      setAlert({ message: 'Debes iniciar sesión para fondear.', type: 'error' });
+      return;
+    }
+
+    setIsDepositing(true);
+    try {
+      // Guardar monto localmente para sumarlo al retornar (Optimistic UI fallback)
+      sessionStorage.setItem('pending_deposit', JSON.stringify({ amount, currency: depSymbol }));
+
+      // 1. Llamar a la Vercel Function de Stripe
+      const res = await createStripeCheckout({
+        amount,
+        currency: depSymbol,
+        email: user.email,
+        userId: user.id,
+      });
+
+      // 2. Redirigir a la URL de pago de Stripe (Checkout)
+      if (res.url) {
+        window.location.href = res.url;
+      }
+    } catch (err) {
+      console.error(err);
+      setAlert({ message: 'No se pudo iniciar el proceso de pago con Stripe.', type: 'error' });
+      setIsDepositing(false);
+    }
   };
 
   const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,11 +278,11 @@ export default function Dashboard() {
               <input
                 type="number" placeholder="0.00" value={depAmount}
                 onChange={(e) => setDepAmount(e.target.value)}
-                className="neon-input" min="0" step="any" required
+                className="neon-input" min="0" step="any" required disabled={isDepositing}
               />
             </div>
-            <button type="submit" className="btn btn-primary wide" style={{ marginTop: '10px' }}>
-              Registrar Ingreso
+            <button type="submit" className="btn btn-primary wide" style={{ marginTop: '10px' }} disabled={isDepositing}>
+              {isDepositing ? 'Conectando con Stripe...' : 'Depositar con Tarjeta'}
             </button>
           </form>
         </div>
