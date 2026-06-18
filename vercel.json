@@ -1,0 +1,32 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/auth/:path*",
+      "destination": "https://nexopay-api-production.up.railway.app/api/auth/:path*"
+    },
+    {
+      "source": "/api/wallet/:path*",
+      "destination": "https://nexopay-api-production.up.railway.app/api/wallet/:path*"
+    },
+    {
+      "source": "/api/transactions/:path*",
+      "destination": "https://nexopay-api-production.up.railway.app/api/transactions/:path*"
+    },
+    {
+      "source": "/api/savings-goals/:path*",
+      "destination": "https://nexopay-api-production.up.railway.app/api/savings-goals/:path*"
+    },
+    {
+      "source": "/api/shared-expenses/:path*",
+      "destination": "https://nexopay-api-production.up.railway.app/api/shared-expenses/:path*"
+    },
+    {
+      "source": "/api/rates/:path*",
+      "destination": "https://nexopay-api-production.up.railway.app/api/rates/:path*"
+    },
+    {
+      "source": "/api/create-checkout",
+      "destination": "https://nexopay-api-production.up.railway.app/api/create-checkout"
+    }
+  ]
+}
