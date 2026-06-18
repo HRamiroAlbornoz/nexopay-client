@@ -3,6 +3,7 @@ import { useSharedExpenses } from '../../hooks/useSharedExpenses';
 import { useAuth } from '../../hooks/useAuth';
 import { getWallet } from '../../api-calls/wallet/wallet.get';
 import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
+import Toast, { type ToastAlert } from '../../components/Toast/Toast';
 
 const RICHARD_WALLET_ID = '0528693b-43dc-4955-937a-496cc530b091';
 
@@ -15,12 +16,15 @@ export default function SharedExpenses() {
   const [title, setTitle] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('ARS');
-  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+  const [alert, setAlert] = useState<ToastAlert | null>(null);
 
   useEffect(() => {
     getWallet()
       .then((wallet) => setMyWalletId(wallet.id))
-      .catch(() => setMyWalletId(null));
+      .catch((err) => {
+        console.error('No se pudo obtener la billetera del usuario.', err);
+        setMyWalletId(null);
+      });
   }, []);
 
   const handleCreateExpense = async (e: React.FormEvent) => {
@@ -44,7 +48,7 @@ export default function SharedExpenses() {
     }
 
     const halfShare = amount / 2;
-    const success = await addExpense({
+    const result = await addExpense({
       title,
       total_amount: amount,
       currency_code: currency,
@@ -54,8 +58,8 @@ export default function SharedExpenses() {
       ],
     });
 
-    if (!success) {
-      setAlert({ message: 'No se pudo crear el gasto compartido. Intenta de nuevo.', type: 'error' });
+    if (!result.ok) {
+      setAlert({ message: result.message, type: 'error' });
       return;
     }
 
@@ -92,19 +96,7 @@ export default function SharedExpenses() {
         <div className="badge">Cuentas Claras</div>
       </div>
 
-      {alert && (
-        <div role="alert" aria-live="assertive" className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
-          <div className="toast-content">
-            <span className="toast-title" style={{ fontSize: '10px' }}>
-              {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : 'Advertencia'}
-            </span>
-            <span className="toast-message" style={{ fontSize: '12px' }}>
-              {alert.message}
-            </span>
-          </div>
-          <button type="button" className="toast-close" onClick={() => setAlert(null)} aria-label="Cerrar">&times;</button>
-        </div>
-      )}
+      {alert && <Toast alert={alert} onClose={() => setAlert(null)} />}
 
       <div className="dashboard-content-split">
         {/* Expenses List */}

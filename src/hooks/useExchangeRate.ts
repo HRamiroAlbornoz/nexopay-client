@@ -46,7 +46,8 @@ export function useExchangeRate() {
     try {
       const data = await getRates();
       setRates(toRateList(data));
-    } catch {
+    } catch (err) {
+      console.error('No se pudieron cargar las tasas de cambio.', err);
       setError('No se pudieron cargar las tasas de cambio.');
     } finally {
       setLoading(false);

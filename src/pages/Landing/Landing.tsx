@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { loginUser, registerUser, loginOrRegisterWithGoogle } from '../../api-calls/auth/auth.post';
 import FloatingSymbols from '../../components/ui/FloatingSymbols';
+import Toast, { type ToastAlert } from '../../components/Toast/Toast';
 import './Landing.css';
 
 export default function Landing() {
@@ -17,7 +18,7 @@ export default function Landing() {
   const [lastName, setLastName] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [formStatus, setFormStatus] = useState<'idle' | 'loading'>('idle');
-  const [alert, setAlert] = useState<{ message: string; type: 'error' | 'success' | 'info' | 'warning' } | null>(null);
+  const [alert, setAlert] = useState<ToastAlert | null>(null);
 
   /* Redirige si ya está autenticado */
   useEffect(() => {
@@ -264,17 +265,7 @@ export default function Landing() {
             </div>
 
             {/* Alert */}
-            {alert && (
-              <div role="alert" aria-live="assertive" className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 18 }}>
-                <div className="toast-content">
-                  <span className="toast-title" style={{ fontSize: '10px' }}>
-                    {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : alert.type === 'warning' ? 'Advertencia' : 'Info'}
-                  </span>
-                  <span className="toast-message" style={{ fontSize: '12px' }}>{alert.message}</span>
-                </div>
-                <button type="button" className="toast-close" onClick={() => setAlert(null)} aria-label="Cerrar">&times;</button>
-              </div>
-            )}
+            {alert && <Toast alert={alert} onClose={() => setAlert(null)} />}
 
             {/* Formulario */}
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

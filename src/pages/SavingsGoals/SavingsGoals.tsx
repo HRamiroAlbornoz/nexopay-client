@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useSavingsGoals } from '../../hooks/useSavingsGoals';
 import { useAuth } from '../../hooks/useAuth';
 import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
+import Toast, { type ToastAlert } from '../../components/Toast/Toast';
 
 export default function SavingsGoals() {
   const { user } = useAuth();
@@ -11,7 +12,7 @@ export default function SavingsGoals() {
   const [targetAmount, setTargetAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
   const [targetDate, setTargetDate] = useState('');
-  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+  const [alert, setAlert] = useState<ToastAlert | null>(null);
   const [fundAmounts, setFundAmounts] = useState<Record<string, string>>({});
   const [fundingId, setFundingId] = useState<string | null>(null);
 
@@ -30,15 +31,15 @@ export default function SavingsGoals() {
       return;
     }
 
-    const success = await addGoal({
+    const result = await addGoal({
       title,
       target_amount: amount,
       currency_code: currency,
       target_date: targetDate || null,
     });
 
-    if (!success) {
-      setAlert({ message: 'No se pudo crear el objetivo. Intenta de nuevo.', type: 'error' });
+    if (!result.ok) {
+      setAlert({ message: result.message, type: 'error' });
       return;
     }
 
@@ -83,19 +84,7 @@ export default function SavingsGoals() {
         <div className="badge">Mis Objetivos</div>
       </div>
 
-      {alert && (
-        <div role="alert" aria-live="assertive" className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
-          <div className="toast-content">
-            <span className="toast-title" style={{ fontSize: '10px' }}>
-              {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : 'Advertencia'}
-            </span>
-            <span className="toast-message" style={{ fontSize: '12px' }}>
-              {alert.message}
-            </span>
-          </div>
-          <button type="button" className="toast-close" onClick={() => setAlert(null)} aria-label="Cerrar">&times;</button>
-        </div>
-      )}
+      {alert && <Toast alert={alert} onClose={() => setAlert(null)} />}
 
       <div className="dashboard-content-split">
         {/* Goals Progress List */}

@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { createTransfer } from '../../api-calls/transactions/transactions.post';
 import { ApiError } from '../../lib/apiError';
 import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
+import Toast, { type ToastAlert } from '../../components/Toast/Toast';
 
 export default function Wallet() {
   const { balances, updateBalance } = useWallet();
@@ -12,7 +13,7 @@ export default function Wallet() {
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
   const [recipient, setRecipient] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+  const [alert, setAlert] = useState<ToastAlert | null>(null);
 
   const handleTransfer = async (e: FormEvent) => {
     e.preventDefault();
@@ -74,19 +75,7 @@ export default function Wallet() {
         <div className="badge">Mi Cartera</div>
       </div>
 
-      {alert && (
-        <div role="alert" aria-live="assertive" className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
-          <div className="toast-content">
-            <span className="toast-title" style={{ fontSize: '10px' }}>
-              {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : 'Advertencia'}
-            </span>
-            <span className="toast-message" style={{ fontSize: '12px' }}>
-              {alert.message}
-            </span>
-          </div>
-          <button type="button" className="toast-close" onClick={() => setAlert(null)} aria-label="Cerrar">&times;</button>
-        </div>
-      )}
+      {alert && <Toast alert={alert} onClose={() => setAlert(null)} />}
 
       <div className="dashboard-content-split">
         {/* Wallet Balances */}

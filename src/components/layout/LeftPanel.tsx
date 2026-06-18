@@ -28,6 +28,7 @@ export default function LeftPanel() {
   return (
     <aside
       className={`left-panel-neon ${collapsed ? 'collapsed' : 'expanded'}`}
+      aria-expanded={!collapsed}
       onMouseEnter={() => {
         if (!pinned) setCollapsed(false);
       }}
