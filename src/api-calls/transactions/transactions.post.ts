@@ -27,7 +27,9 @@ async function postTransaction(endpoint: string, body: Record<string, unknown>) 
   });
 
   const raw = await parseApiResponse(res);
-  return transactionResponseSchema.parse(raw);
+  // El backend devuelve { transaction: {...} }
+  const wrapper = z.object({ transaction: transactionResponseSchema }).parse(raw);
+  return wrapper.transaction;
 }
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────
