@@ -8,11 +8,7 @@ export default function SavingsGoals() {
   const [targetAmount, setTargetAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
   const [targetDate, setTargetDate] = useState('');
-  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
-
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // - Integración de metas de ahorro requerida: Implementar las rutas `GET /api/savings-goals` y `POST /api/savings-goals`
-  //   que inserten/actualicen los valores en la tabla `savings_goals` de PostgreSQL.
+  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
   const handleCreateGoal = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,13 +25,17 @@ export default function SavingsGoals() {
       return;
     }
 
-    await addGoal({
+    const success = await addGoal({
       title,
       target_amount: amount,
-      current_amount: 0,
       currency_code: currency,
       target_date: targetDate || null,
     });
+
+    if (!success) {
+      setAlert({ message: 'No se pudo crear el objetivo. Intenta de nuevo.', type: 'error' });
+      return;
+    }
 
     setTitle('');
     setTargetAmount('');
@@ -58,7 +58,7 @@ export default function SavingsGoals() {
         <div className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
           <div className="toast-content">
             <span className="toast-title" style={{ fontSize: '10px' }}>
-              {alert.type === 'success' ? 'Éxito' : 'Advertencia'}
+              {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : 'Advertencia'}
             </span>
             <span className="toast-message" style={{ fontSize: '12px' }}>
               {alert.message}

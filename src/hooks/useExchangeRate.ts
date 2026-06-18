@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { getRates, type RatesResponse } from '../api-calls/rates/rates.get';
 
 export interface CurrencyRate {
   id: string;
@@ -8,45 +9,54 @@ export interface CurrencyRate {
   price_change_percentage_24h: number;
 }
 
+function toRateList(data: RatesResponse): CurrencyRate[] {
+  return [
+    {
+      id: 'usd',
+      symbol: 'usd',
+      name: 'Dólar Estadounidense',
+      current_price: 1.0,
+      price_change_percentage_24h: 0,
+    },
+    {
+      id: 'eur',
+      symbol: 'eur',
+      name: 'Euro',
+      current_price: data.rates.USD,
+      price_change_percentage_24h: 0,
+    },
+    {
+      id: 'ars',
+      symbol: 'ars',
+      name: 'Peso Argentino',
+      current_price: data.rates.ARS > 0 ? data.rates.USD / data.rates.ARS : 0,
+      price_change_percentage_24h: 0,
+    },
+  ];
+}
+
 export function useExchangeRate() {
   const [rates, setRates] = useState<CurrencyRate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // 1. Crear una ruta `GET /api/rates` que llame a Frankfurter API (que ya tiene su estructura en nexopay-api/src/api-calls)
-  //    y devuelva cotizaciones en tiempo real para ARS, USD y EUR.
-
-  useEffect(() => {
-    // Simulated live rates feed restricted only to active currencies: ARS, USD, EUR
-    const timer = setTimeout(() => {
-      setRates([
-        {
-          id: '1',
-          symbol: 'usd',
-          name: 'Dólar Estadounidense',
-          current_price: 1.0,
-          price_change_percentage_24h: 0.15,
-        },
-        {
-          id: '2',
-          symbol: 'eur',
-          name: 'Euro',
-          current_price: 1.0854,
-          price_change_percentage_24h: -0.32,
-        },
-        {
-          id: '3',
-          symbol: 'ars',
-          name: 'Peso Argentino',
-          current_price: 0.0011, // $904.50 pesos per dollar
-          price_change_percentage_24h: 1.25,
-        },
-      ]);
+  const fetchRates = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getRates();
+      setRates(toRateList(data));
+    } catch {
+      setError('No se pudieron cargar las tasas de cambio.');
+    } finally {
       setLoading(false);
-    }, 400);
-
-    return () => clearTimeout(timer);
+    }
   }, []);
 
-  return { rates, loading };
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchRates es un callback estable; patrón establecido en useTransactions/useWallet
+    void fetchRates();
+  }, [fetchRates]);
+
+  return { rates, loading, error, refetch: fetchRates };
 }

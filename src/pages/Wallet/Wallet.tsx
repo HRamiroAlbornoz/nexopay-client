@@ -1,17 +1,17 @@
 import { useState, type FormEvent } from 'react';
 import { useWallet } from '../../hooks/useWallet';
+import { useAuth } from '../../hooks/useAuth';
+import { createTransfer } from '../../api-calls/transactions/transactions.post';
+import { ApiError } from '../../lib/apiError';
 
 export default function Wallet() {
   const { balances, updateBalance } = useWallet();
+  const { logout } = useAuth();
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
   const [recipient, setRecipient] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
-
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // - Ruta de transferencia requerida: Implementar la ruta `POST /api/wallet/transfer` que reciba { recipient_email, currency_code, amount },
-  //   verifique que el emisor tenga fondos suficientes, reste de su saldo y sume al del destinatario.
 
   const handleTransfer = async (e: FormEvent) => {
     e.preventDefault();
@@ -35,9 +35,8 @@ export default function Wallet() {
     }
 
     setIsSubmitting(true);
-    // Simulate transaction delay
-    setTimeout(() => {
-      // Deduct funds locally (immutable update via setWallet)
+    try {
+      await createTransfer({ recipient_email: recipient, currency_code: currency, amount: transferAmount });
       updateBalance(currency, -transferAmount);
       setAlert({
         message: `¡Transferencia de ${transferAmount} ${currency} enviada con éxito a ${recipient}!`,
@@ -45,8 +44,19 @@ export default function Wallet() {
       });
       setAmount('');
       setRecipient('');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.isUnauthorized()) {
+          logout();
+          return;
+        }
+        setAlert({ message: err.message, type: 'error' });
+      } else {
+        setAlert({ message: 'No se pudo completar la transferencia.', type: 'error' });
+      }
+    } finally {
       setIsSubmitting(false);
-    }, 1000);
+    }
   };
 
   return (

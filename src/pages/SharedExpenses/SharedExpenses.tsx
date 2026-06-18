@@ -1,20 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSharedExpenses } from '../../hooks/useSharedExpenses';
-import { useAuth } from '../../hooks/useAuth';
+import { getWallet } from '../../api-calls/wallet/wallet.get';
+
+const RICHARD_WALLET_ID = '0528693b-43dc-4955-937a-496cc530b091';
 
 export default function SharedExpenses() {
-  const { user } = useAuth();
   const { expenses, addExpense } = useSharedExpenses();
 
+  const [myWalletId, setMyWalletId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('ARS');
-  const [teammateEmail, setTeammateEmail] = useState('hernan@nexopay.com');
-  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
+  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // - Integración de gastos compartidos requerida: Implementar las rutas `GET /api/shared-expenses` y `POST /api/shared-expenses`
-  //   que inserten registros automáticamente en las tablas `shared_expenses` y `shared_expense_members`.
+  useEffect(() => {
+    getWallet()
+      .then((wallet) => setMyWalletId(wallet.id))
+      .catch(() => setMyWalletId(null));
+  }, []);
 
   const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,26 +34,26 @@ export default function SharedExpenses() {
       return;
     }
 
+    if (!myWalletId) {
+      setAlert({ message: 'No se pudo identificar tu billetera. Intenta de nuevo.', type: 'error' });
+      return;
+    }
+
     const halfShare = amount / 2;
-    await addExpense({
+    const success = await addExpense({
       title,
       total_amount: amount,
       currency_code: currency,
       members: [
-        {
-          wallet_id: 'currentUser',
-          name: user ? `${user.first_name} ${user.last_name || ''}` : 'Usuario',
-          amount_owed: halfShare,
-          amount_paid: halfShare, // Creator assumes full/half pay
-        },
-        {
-          wallet_id: 'teammateUser',
-          name: teammateEmail.split('@')[0] || 'Compañero',
-          amount_owed: halfShare,
-          amount_paid: 0,
-        },
+        { wallet_id: myWalletId, amount_owed: halfShare },
+        { wallet_id: RICHARD_WALLET_ID, amount_owed: halfShare },
       ],
     });
+
+    if (!success) {
+      setAlert({ message: 'No se pudo crear el gasto compartido. Intenta de nuevo.', type: 'error' });
+      return;
+    }
 
     setTitle('');
     setTotalAmount('');
@@ -72,7 +75,7 @@ export default function SharedExpenses() {
         <div className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
           <div className="toast-content">
             <span className="toast-title" style={{ fontSize: '10px' }}>
-              {alert.type === 'success' ? 'Éxito' : 'Advertencia'}
+              {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : 'Advertencia'}
             </span>
             <span className="toast-message" style={{ fontSize: '12px' }}>
               {alert.message}
@@ -148,16 +151,8 @@ export default function SharedExpenses() {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="expense-teammate-input">Dividir con (Correo)</label>
-              <input
-                id="expense-teammate-input"
-                type="email"
-                placeholder="companero@nexopay.com"
-                value={teammateEmail}
-                onChange={(e) => setTeammateEmail(e.target.value)}
-                className="neon-input"
-                required
-              />
+              <label>Dividir con</label>
+              <p className="small" style={{ margin: 0 }}>Richard González</p>
             </div>
             <div className="form-group">
               <label htmlFor="expense-currency-select">Moneda</label>
