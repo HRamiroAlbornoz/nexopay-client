@@ -1,9 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { useWallet } from '../../hooks/useWallet';
+import { useAuth } from '../../hooks/useAuth';
 import { createTransfer } from '../../api-calls/transactions/transactions.post';
+import { sendConfirmationEmail } from '../../api-calls/email/email.post';
 import { ApiError } from '../../lib/apiError';
 
 export default function Wallet() {
+  const { user } = useAuth();
   const { balances, updateBalance } = useWallet();
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
@@ -44,6 +47,28 @@ export default function Wallet() {
         message: `¡Transferencia de ${transferAmount} ${currency} enviada con éxito a ${recipient}!`,
         type: 'success',
       });
+
+      // Disparar email de confirmación sin bloquear el hilo principal
+      if (user?.email) {
+        sendConfirmationEmail({
+          to: user.email,
+          subject: 'Comprobante de Transferencia - NexoPay',
+          html: `
+            <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+              <h2 style="color: #00e676;">Transferencia Exitosa</h2>
+              <p>Hola <strong>${user.first_name}</strong>,</p>
+              <p>Has enviado fondos exitosamente a través de NexoPay. Aquí tienes el detalle de tu operación:</p>
+              <ul style="background: #f9f9f9; padding: 15px; border-radius: 4px; list-style: none;">
+                <li><strong>Destinatario:</strong> ${recipient}</li>
+                <li><strong>Monto:</strong> ${transferAmount} ${currency}</li>
+                <li><strong>Fecha:</strong> ${new Date().toLocaleString('es-AR')}</li>
+              </ul>
+              <p>Gracias por confiar en NexoPay.</p>
+            </div>
+          `,
+        }).catch(() => { /* El error ya se loguea en email.post.ts */ });
+      }
+
       setAmount('');
       setRecipient('');
     } catch (err) {
