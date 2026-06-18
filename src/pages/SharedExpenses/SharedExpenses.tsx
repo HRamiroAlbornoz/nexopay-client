@@ -43,17 +43,16 @@ export default function SharedExpenses() {
     const halfShare = amount / 2;
     setIsSubmitting(true);
     try {
+      const RICHARD_WALLET_ID = '0528693b-43dc-4955-937a-496cc530b091';
       // Contrato del backend: { title, total_amount, currency_code, members: [{ wallet_id, amount_owed }] }
       // El creador debe estar en members; su parte queda saldada automáticamente por el backend.
-      // El campo wallet_id del compañero lo resuelve el backend por email (futura mejora) —
-      // por ahora enviamos un placeholder que el backend vincula al email si tiene esa lógica.
       await addExpense({
         title,
         total_amount: amount,
         currency_code: currency,
         members: [
           { wallet_id: myWalletId, amount_owed: halfShare },
-          { wallet_id: teammateEmail, amount_owed: halfShare }, // backend resuelve por email
+          { wallet_id: RICHARD_WALLET_ID, amount_owed: halfShare },
         ],
       });
       setTitle('');

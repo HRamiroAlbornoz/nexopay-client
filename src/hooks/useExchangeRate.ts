@@ -22,31 +22,20 @@ export interface CurrencyRate {
 
 /** Convierte la respuesta del backend al shape que usa el resto de la app */
 function toRateList(data: RatesResponse): CurrencyRate[] {
-  // El backend devuelve las tasas relativas al EUR.
-  // USD/EUR = data.rates.USD  →  1 USD = 1/data.rates.USD EUR
-  // Para current_price usamos "cuánto vale 1 unidad de esta moneda en USD"
-  const usdPerEur = data.rates.USD > 0 ? 1 / data.rates.USD : 1;
-
   return [
     {
-      id: 'usd',
-      symbol: 'usd',
-      name: 'Dólar Estadounidense',
+      id: 'usd', symbol: 'usd', name: 'Dólar Estadounidense',
       current_price: 1.0,
       price_change_percentage_24h: 0,
     },
     {
-      id: 'eur',
-      symbol: 'eur',
-      name: 'Euro',
-      current_price: usdPerEur,
+      id: 'eur', symbol: 'eur', name: 'Euro',
+      current_price: data.rates.USD,
       price_change_percentage_24h: 0,
     },
     {
-      id: 'ars',
-      symbol: 'ars',
-      name: 'Peso Argentino',
-      current_price: data.rates.ARS > 0 ? usdPerEur / data.rates.ARS : 0,
+      id: 'ars', symbol: 'ars', name: 'Peso Argentino',
+      current_price: data.rates.ARS > 0 ? data.rates.USD / data.rates.ARS : 0,
       price_change_percentage_24h: 0,
     },
   ];
