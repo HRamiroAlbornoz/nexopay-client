@@ -1,14 +1,19 @@
 import { useState } from 'react';
 import { useSavingsGoals } from '../../hooks/useSavingsGoals';
+import { useAuth } from '../../hooks/useAuth';
+import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
 
 export default function SavingsGoals() {
-  const { goals, addGoal } = useSavingsGoals();
+  const { user } = useAuth();
+  const { goals, addGoal, fundGoal } = useSavingsGoals();
 
   const [title, setTitle] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
   const [targetDate, setTargetDate] = useState('');
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+  const [fundAmounts, setFundAmounts] = useState<Record<string, string>>({});
+  const [fundingId, setFundingId] = useState<string | null>(null);
 
   const handleCreateGoal = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +46,30 @@ export default function SavingsGoals() {
     setTargetAmount('');
     setTargetDate('');
     setAlert({ message: `¡Objetivo de ahorro "${title}" creado con éxito!`, type: 'success' });
+  };
+
+  const handleFund = async (goalId: string) => {
+    setAlert(null);
+    const amount = Number(fundAmounts[goalId]);
+    if (!fundAmounts[goalId] || amount <= 0) {
+      setAlert({ message: 'Ingresa un monto válido mayor a cero.', type: 'warning' });
+      return;
+    }
+
+    setFundingId(goalId);
+    const result = await fundGoal(goalId, amount);
+    setFundingId(null);
+
+    if (!result.ok) {
+      setAlert({ message: result.message, type: 'error' });
+      return;
+    }
+
+    if (user) {
+      sendTransactionConfirmationEmail(result.transaction, user);
+    }
+    setFundAmounts((prev) => ({ ...prev, [goalId]: '' }));
+    setAlert({ message: '¡Aporte realizado con éxito!', type: 'success' });
   };
 
   return (
@@ -102,6 +131,30 @@ export default function SavingsGoals() {
                     <span className="small">{progressPct.toFixed(1)}% completado</span>
                     {goal.target_date && <span className="small">Meta: {new Date(goal.target_date).toLocaleDateString()}</span>}
                   </div>
+                  {goal.status !== 'completed' && (
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                      <input
+                        type="number"
+                        placeholder="Monto a aportar"
+                        value={fundAmounts[goal.id] ?? ''}
+                        onChange={(e) => setFundAmounts((prev) => ({ ...prev, [goal.id]: e.target.value }))}
+                        className="neon-input"
+                        min="0"
+                        step="any"
+                        style={{ flex: 1 }}
+                        aria-label={`Monto a aportar a ${goal.title}`}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        style={{ fontSize: '11px', padding: '6px 12px', whiteSpace: 'nowrap' }}
+                        disabled={fundingId === goal.id}
+                        onClick={() => handleFund(goal.id)}
+                      >
+                        {fundingId === goal.id ? 'Aportando...' : 'Aportar'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

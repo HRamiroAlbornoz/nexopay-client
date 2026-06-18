@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useSharedExpenses } from '../../hooks/useSharedExpenses';
+import { useAuth } from '../../hooks/useAuth';
 import { getWallet } from '../../api-calls/wallet/wallet.get';
+import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
 
 const RICHARD_WALLET_ID = '0528693b-43dc-4955-937a-496cc530b091';
 
 export default function SharedExpenses() {
-  const { expenses, addExpense } = useSharedExpenses();
+  const { user } = useAuth();
+  const { expenses, addExpense, settleExpense } = useSharedExpenses();
 
   const [myWalletId, setMyWalletId] = useState<string | null>(null);
+  const [settlingId, setSettlingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('ARS');
@@ -60,6 +64,23 @@ export default function SharedExpenses() {
     setAlert({ message: `¡Gasto compartido "${title}" creado y dividido con éxito!`, type: 'success' });
   };
 
+  const handleSettle = async (expenseId: string) => {
+    setAlert(null);
+    setSettlingId(expenseId);
+    const result = await settleExpense(expenseId);
+    setSettlingId(null);
+
+    if (!result.ok) {
+      setAlert({ message: result.message, type: 'error' });
+      return;
+    }
+
+    if (user) {
+      sendTransactionConfirmationEmail(result.transaction, user);
+    }
+    setAlert({ message: '¡Tu parte del gasto fue liquidada con éxito!', type: 'success' });
+  };
+
   return (
     <div className="dashboard-card">
       <div className="dashboard-header">
@@ -97,38 +118,57 @@ export default function SharedExpenses() {
                   <th>Total</th>
                   <th>Moneda</th>
                   <th>Miembros / Estado</th>
+                  <th>Acción</th>
                 </tr>
               </thead>
               <tbody>
-                {expenses.map((expense) => (
-                  <tr key={expense.id}>
-                    <td style={{ fontWeight: 'bold' }}>{expense.title}</td>
-                    <td>{expense.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    <td>
-                      <span className="symbol-tag" style={{ fontSize: '10.5px', padding: '2px 6px', display: 'inline-block' }}>
-                        {expense.currency_code}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '12px' }}>
-                        {expense.members.map((m) => `${m.name.split(' ')[0]} ($${m.amount_paid}/${m.amount_owed})`).join(', ')}
-                      </div>
-                      <span
-                        className="badge"
-                        style={{
-                          background: expense.status === 'settled' ? 'rgba(0,230,118,0.1)' : 'rgba(255,183,0,0.1)',
-                          color: expense.status === 'settled' ? '#00e676' : '#ffb700',
-                          border: 'none',
-                          marginTop: '4px',
-                          padding: '2px 8px',
-                          fontSize: '9.5px',
-                        }}
-                      >
-                        {expense.status === 'settled' ? 'Saldado' : 'Pendiente'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {expenses.map((expense) => {
+                  const myShare = expense.members.find((m) => m.wallet_id === myWalletId);
+                  const owesMoney = myShare && myShare.amount_paid < myShare.amount_owed;
+
+                  return (
+                    <tr key={expense.id}>
+                      <td style={{ fontWeight: 'bold' }}>{expense.title}</td>
+                      <td>{expense.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td>
+                        <span className="symbol-tag" style={{ fontSize: '10.5px', padding: '2px 6px', display: 'inline-block' }}>
+                          {expense.currency_code}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ fontSize: '12px' }}>
+                          {expense.members.map((m) => `${m.name.split(' ')[0]} ($${m.amount_paid}/${m.amount_owed})`).join(', ')}
+                        </div>
+                        <span
+                          className="badge"
+                          style={{
+                            background: expense.status === 'settled' ? 'rgba(0,230,118,0.1)' : 'rgba(255,183,0,0.1)',
+                            color: expense.status === 'settled' ? '#00e676' : '#ffb700',
+                            border: 'none',
+                            marginTop: '4px',
+                            padding: '2px 8px',
+                            fontSize: '9.5px',
+                          }}
+                        >
+                          {expense.status === 'settled' ? 'Saldado' : 'Pendiente'}
+                        </span>
+                      </td>
+                      <td>
+                        {owesMoney && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            style={{ fontSize: '11px', padding: '6px 10px' }}
+                            disabled={settlingId === expense.id}
+                            onClick={() => handleSettle(expense.id)}
+                          >
+                            {settlingId === expense.id ? 'Liquidando...' : 'Liquidar mi parte'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
