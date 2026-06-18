@@ -1,18 +1,16 @@
 import { useState } from 'react';
 import { useSavingsGoals } from '../../hooks/useSavingsGoals';
+import { ApiError } from '../../lib/apiError';
 
 export default function SavingsGoals() {
-  const { goals, addGoal } = useSavingsGoals();
+  const { goals, loading, error, addGoal } = useSavingsGoals();
 
   const [title, setTitle] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
   const [targetDate, setTargetDate] = useState('');
-  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
-
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // - Integración de metas de ahorro requerida: Implementar las rutas `GET /api/savings-goals` y `POST /api/savings-goals`
-  //   que inserten/actualicen los valores en la tabla `savings_goals` de PostgreSQL.
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
   const handleCreateGoal = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,24 +21,31 @@ export default function SavingsGoals() {
       setAlert({ message: 'Por favor, ingresa un título para el objetivo.', type: 'warning' });
       return;
     }
-
     if (!targetAmount || amount <= 0) {
       setAlert({ message: 'Ingresa un monto objetivo válido mayor a cero.', type: 'warning' });
       return;
     }
 
-    await addGoal({
-      title,
-      target_amount: amount,
-      current_amount: 0,
-      currency_code: currency,
-      target_date: targetDate || null,
-    });
-
-    setTitle('');
-    setTargetAmount('');
-    setTargetDate('');
-    setAlert({ message: `¡Objetivo de ahorro "${title}" creado con éxito!`, type: 'success' });
+    setIsSubmitting(true);
+    try {
+      // Contrato del backend: { title, target_amount, currency_code, target_date? }
+      // No se envía current_amount — el backend lo inicializa en 0 internamente.
+      await addGoal({
+        title,
+        target_amount: amount,
+        currency_code: currency,
+        target_date: targetDate || null,
+      });
+      setTitle('');
+      setTargetAmount('');
+      setTargetDate('');
+      setAlert({ message: `¡Objetivo de ahorro "${title}" creado con éxito!`, type: 'success' });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Error al crear el objetivo.';
+      setAlert({ message: msg, type: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -54,11 +59,14 @@ export default function SavingsGoals() {
         <div className="badge">Mis Objetivos</div>
       </div>
 
+      {loading && <p className="small" style={{ color: 'var(--text-secondary)', marginBottom: 12 }}>Cargando metas...</p>}
+      {error && <p className="small" style={{ color: 'var(--accent-danger)', marginBottom: 12 }}>{error}</p>}
+
       {alert && (
         <div className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
           <div className="toast-content">
             <span className="toast-title" style={{ fontSize: '10px' }}>
-              {alert.type === 'success' ? 'Éxito' : 'Advertencia'}
+              {alert.type === 'success' ? 'Éxito' : alert.type === 'error' ? 'Error' : 'Advertencia'}
             </span>
             <span className="toast-message" style={{ fontSize: '12px' }}>
               {alert.message}
@@ -161,8 +169,8 @@ export default function SavingsGoals() {
                 className="neon-input"
               />
             </div>
-            <button type="submit" className="btn btn-primary wide" style={{ marginTop: '10px' }}>
-              Crear Objetivo
+            <button type="submit" disabled={isSubmitting} className="btn btn-primary wide" style={{ marginTop: '10px' }}>
+              {isSubmitting ? 'Creando...' : 'Crear Objetivo'}
             </button>
           </form>
         </div>

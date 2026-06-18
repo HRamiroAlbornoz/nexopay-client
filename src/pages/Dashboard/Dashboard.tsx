@@ -3,6 +3,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useWallet } from '../../hooks/useWallet';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useExchangeRate } from '../../hooks/useExchangeRate';
+import BalanceChart, { type BalanceDataPoint } from '../../components/charts/BalanceChart/BalanceChart';
+import TransactionTimeline from '../../components/charts/TransactionTimeline/TransactionTimeline';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -12,6 +14,8 @@ export default function Dashboard() {
 
   const [depAmount, setDepAmount] = useState('');
   const [depSymbol, setDepSymbol] = useState<'ARS' | 'USD' | 'EUR'>('USD');
+  const [documentStatus, setDocumentStatus] = useState('Pendiente');
+  const [isUploading, setIsUploading] = useState(false);
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
   // Valor estimado total de la cartera en USD
@@ -30,7 +34,54 @@ export default function Dashboard() {
     return { list: list.sort((a, b) => b.valueUSD - a.valueUSD), totalUSD: total };
   }, [balances, rates]);
 
+  // Genera datos históricos de balance reales a partir de las transacciones
+  const balanceChartData = useMemo((): BalanceDataPoint[] => {
+    if (!balances || balances.length === 0) return [];
 
+    const points: BalanceDataPoint[] = [];
+    let currentARS = balances.find((b) => b.currency_code === 'ARS')?.amount || 0;
+    let currentUSD = balances.find((b) => b.currency_code === 'USD')?.amount || 0;
+    let currentEUR = balances.find((b) => b.currency_code === 'EUR')?.amount || 0;
+
+    // Ordenar transacciones de más reciente a más antigua
+    const sortedTx = [...transactions].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    const now = new Date();
+    // Retroceder día a día para reconstruir el saldo
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+
+      // Registrar el balance al final del día `d`
+      points.unshift({
+        date: dateStr,
+        ARS: parseFloat(currentARS.toFixed(2)),
+        USD: parseFloat(currentUSD.toFixed(2)),
+        EUR: parseFloat(currentEUR.toFixed(2)),
+      });
+
+      // Restar los movimientos que ocurrieron en el día `d` para obtener el saldo del día anterior
+      const txOnDay = sortedTx.filter((tx) => {
+        const txDate = new Date(tx.created_at);
+        return txDate.getDate() === d.getDate() && txDate.getMonth() === d.getMonth() && txDate.getFullYear() === d.getFullYear();
+      });
+
+      txOnDay.forEach((tx) => {
+        // Revertir la operación
+        if (tx.currency_to === 'ARS') currentARS -= tx.amount_to;
+        if (tx.currency_to === 'USD') currentUSD -= tx.amount_to;
+        if (tx.currency_to === 'EUR') currentEUR -= tx.amount_to;
+        
+        // Si hay una moneda de origen, revertir el descuento (sumarla de vuelta)
+        if (tx.currency_from && tx.currency_from === 'ARS') currentARS += tx.amount_from;
+        if (tx.currency_from && tx.currency_from === 'USD') currentUSD += tx.amount_from;
+        if (tx.currency_from && tx.currency_from === 'EUR') currentEUR += tx.amount_from;
+      });
+    }
+
+    return points;
+  }, [balances, transactions]);
 
   const handleDepositSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -54,7 +105,19 @@ export default function Dashboard() {
     setAlert({ message: `¡Ingreso de ${amount} ${depSymbol} registrado con éxito! (Simulado)`, type: 'success' });
   };
 
-
+  const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setAlert(null);
+    setIsUploading(true);
+    setDocumentStatus('Subiendo');
+    setTimeout(() => {
+      setDocumentStatus('Guardado local');
+      setAlert({ message: 'Simulación: Documento cargado localmente. Hernán debe habilitar /api/get-presigned-url.', type: 'success' });
+      setIsUploading(false);
+      event.target.value = '';
+    }, 1200);
+  };
 
   return (
     <div className="dashboard-card">
@@ -87,6 +150,30 @@ export default function Dashboard() {
             ${assetDetails.totalUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="small">Equivalente USD (ARS/USD/EUR)</div>
+        </div>
+        <div className="dashboard-stat-card">
+          <div className="stat-label">Historial de Operaciones</div>
+          <div className="stat-value">{transactions.length}</div>
+          <div className="small">Transacciones registradas</div>
+        </div>
+        <div className="dashboard-stat-card">
+          <div className="stat-label">Estado de Verificación</div>
+          <div className="stat-value status-value" style={{ color: documentStatus.includes('Guardado') ? '#00e676' : '#ffb700' }}>
+            {documentStatus}
+          </div>
+          <div className="small">Identidad y origen de fondos</div>
+        </div>
+      </div>
+
+      {/* Charts */}
+      <div className="dashboard-content-split" style={{ marginBottom: 20 }}>
+        <div className="dashboard-sub-panel">
+          <div className="dashboard-section-title">Evolución de Balances (7 días)</div>
+          <BalanceChart data={balanceChartData} />
+        </div>
+        <div className="dashboard-sub-panel">
+          <div className="dashboard-section-title">Timeline de Transacciones</div>
+          <TransactionTimeline transactions={transactions} />
         </div>
       </div>
 
@@ -188,7 +275,15 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* El panel de verificación de S3 fue removido por ser solo para administrador */}
+        {/* Verification */}
+        <div className="dashboard-sub-panel">
+          <div className="dashboard-section-title">Documento de Verificación</div>
+          <p className="small">Sube tu identificación o comprobante de fondos para habilitar límites superiores.</p>
+          <label className="upload-box" style={{ marginTop: '16px' }}>
+            <input type="file" accept="image/*,application/pdf" onChange={handleDocumentUpload} disabled={isUploading} />
+            <span>{isUploading ? 'Subiendo archivo...' : 'Seleccionar documento'}</span>
+          </label>
+        </div>
       </div>
     </div>
   );
