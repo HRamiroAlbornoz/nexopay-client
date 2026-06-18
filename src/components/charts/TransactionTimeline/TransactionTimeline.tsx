@@ -10,32 +10,32 @@ import {
 } from 'recharts';
 import type { TooltipContentProps, DotItemDotProps } from 'recharts';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
-import type { Transaction } from '../../../types/transaction.types';
+import type { Transaction, TransactionType } from '../../../types/transaction.types';
+import { isPositiveTransaction, getTransactionTypeLabel } from '../../../lib/transactionLabels';
 
 interface TransactionTimelineProps {
   transactions: Transaction[];
 }
 
-type DataPoint = { label: string; amount: number; type: string };
+type DataPoint = { label: string; amount: number; type: TransactionType };
 
-const TYPE_COLORS: Record<string, string> = {
-  buy:          '#00e676',
-  sell:         '#ff1744',
-  exchange:     '#7c6dfa',
-  transfer_in:  '#00e676',
-  transfer_out: '#ff1744',
+const TYPE_COLORS: Record<TransactionType, string> = {
+  buy:                      '#00e676',
+  sell:                     '#ff1744',
+  exchange:                 '#7c6dfa',
+  transfer_in:              '#00e676',
+  transfer_out:             '#ff1744',
+  savings_goal_fund:        '#f3ba2f',
+  shared_expense_paid:      '#ff1744',
+  shared_expense_received:  '#00e676',
 };
 
 function CustomTooltip({ active, payload }: TooltipContentProps<ValueType, NameType>) {
   if (!active || !payload?.length) return null;
   const d = payload[0]?.payload as DataPoint | undefined;
   if (!d) return null;
-  const color = TYPE_COLORS[d.type] ?? '#f3ba2f';
-  const typeLabel =
-    d.type === 'buy'          ? 'Compra' :
-    d.type === 'sell'         ? 'Venta' :
-    d.type === 'exchange'     ? 'Conversión' :
-    d.type === 'transfer_in'  ? 'Transferencia Recibida' : 'Transferencia Enviada';
+  const color = TYPE_COLORS[d.type];
+  const typeLabel = getTransactionTypeLabel(d.type);
 
   return (
     <div style={{
@@ -69,7 +69,7 @@ export default function TransactionTimeline({ transactions }: TransactionTimelin
     .slice(-20)
     .map((tx) => ({
       label: new Date(tx.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }),
-      amount: tx.type === 'buy' || tx.type === 'transfer_in' ? tx.amount_to : -tx.amount_from,
+      amount: isPositiveTransaction(tx.type) ? tx.amount_to : -tx.amount_from,
       type: tx.type,
     }));
 
@@ -101,7 +101,7 @@ export default function TransactionTimeline({ transactions }: TransactionTimelin
             const { cx, cy, payload } = props;
             if (cx == null || cy == null) return <></>;
             const typedPayload = payload as DataPoint;
-            const color = TYPE_COLORS[typedPayload.type] ?? '#f3ba2f';
+            const color = TYPE_COLORS[typedPayload.type];
             return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={4} fill={color} stroke="none" />;
           }}
           activeDot={{ r: 6, fill: '#f3ba2f', stroke: 'none' }}

@@ -1,11 +1,14 @@
-import { useState, useMemo, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useWallet } from '../../hooks/useWallet';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useExchangeRate } from '../../hooks/useExchangeRate';
 import { createBuyTransaction } from '../../api-calls/transactions/transactions.post';
+import { getBalanceHistory } from '../../api-calls/wallet/wallet.get';
 import { ApiError } from '../../lib/apiError';
 import { isPositiveTransaction, getTransactionTypeLabel } from '../../lib/transactionLabels';
+import BalanceChart, { type BalanceDataPoint } from '../../components/charts/BalanceChart/BalanceChart';
+import TransactionTimeline from '../../components/charts/TransactionTimeline/TransactionTimeline';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -17,6 +20,13 @@ export default function Dashboard() {
   const [depSymbol, setDepSymbol] = useState<'USD' | 'EUR'>('USD');
   const [isBuying, setIsBuying] = useState(false);
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+  const [balanceHistory, setBalanceHistory] = useState<BalanceDataPoint[]>([]);
+
+  useEffect(() => {
+    getBalanceHistory(7)
+      .then(setBalanceHistory)
+      .catch(() => setBalanceHistory([]));
+  }, []);
 
   // Valor estimado total de la cartera en USD
   const assetDetails = useMemo(() => {
@@ -158,6 +168,20 @@ export default function Dashboard() {
               {isBuying ? 'Comprando...' : 'Comprar'}
             </button>
           </form>
+        </div>
+      </div>
+
+      <div className="dashboard-content-split" style={{ marginBottom: 20 }}>
+        {/* Balance evolution */}
+        <div className="dashboard-sub-panel">
+          <div className="dashboard-section-title">Evolución de Balances</div>
+          <BalanceChart data={balanceHistory} />
+        </div>
+
+        {/* Transaction timeline */}
+        <div className="dashboard-sub-panel">
+          <div className="dashboard-section-title">Timeline de Transacciones</div>
+          <TransactionTimeline transactions={transactions} />
         </div>
       </div>
 
