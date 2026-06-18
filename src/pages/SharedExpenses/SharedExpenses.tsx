@@ -68,6 +68,13 @@ export default function SharedExpenses() {
     setAlert({ message: `¡Gasto compartido "${title}" creado y dividido con éxito!`, type: 'success' });
   };
 
+  const getMemberDisplayName = (member: { wallet_id: string; name?: string | undefined }): string => {
+    if (member.name) return member.name.split(' ')[0] ?? member.name;
+    if (member.wallet_id === myWalletId) return user?.first_name ?? 'Vos';
+    if (member.wallet_id === RICHARD_WALLET_ID) return 'Richard';
+    return 'Miembro';
+  };
+
   const handleSettle = async (expenseId: string) => {
     setAlert(null);
     setSettlingId(expenseId);
@@ -129,7 +136,7 @@ export default function SharedExpenses() {
                       </td>
                       <td>
                         <div style={{ fontSize: '12px' }}>
-                          {expense.members.map((m) => `${m.name.split(' ')[0]} ($${m.amount_paid}/${m.amount_owed})`).join(', ')}
+                          {expense.members.map((m) => `${getMemberDisplayName(m)} ($${m.amount_paid}/${m.amount_owed})`).join(', ')}
                         </div>
                         <span
                           className="badge"

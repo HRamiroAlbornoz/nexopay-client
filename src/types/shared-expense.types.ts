@@ -5,7 +5,10 @@ import { z } from 'zod';
  */
 export const memberSchema = z.object({
   wallet_id: z.string(),
-  name: z.string(),
+  // El backend no devuelve "name" en la respuesta de POST /shared-expenses (recién creado),
+  // aunque sí lo trae GET /shared-expenses en algunos casos — por eso es opcional acá,
+  // y el frontend resuelve el nombre a mostrar localmente (ver SharedExpenses.tsx).
+  name: z.string().optional(),
   amount_owed: z.number(),
   amount_paid: z.number(),
 });
