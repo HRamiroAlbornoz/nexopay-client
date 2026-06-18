@@ -5,6 +5,7 @@ import { useTransactions } from '../../hooks/useTransactions';
 import { useExchangeRate } from '../../hooks/useExchangeRate';
 import { createBuyTransaction } from '../../api-calls/transactions/transactions.post';
 import { ApiError } from '../../lib/apiError';
+import { isPositiveTransaction, getTransactionTypeLabel } from '../../lib/transactionLabels';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -176,16 +177,12 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {transactions.slice(0, 4).map((log) => {
-                  const isPositive = log.type === 'buy' || log.type === 'transfer_in';
+                  const isPositive = isPositiveTransaction(log.type);
                   const absAmount = log.amount_to;
                   const formattedAmt = isPositive
                     ? `+${absAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                     : `-${absAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-                  const typeLabel =
-                    log.type === 'buy'         ? 'Compra' :
-                    log.type === 'sell'        ? 'Venta' :
-                    log.type === 'exchange'    ? 'Conversión' :
-                    log.type === 'transfer_in' ? 'Transf. Recibida' : 'Transf. Enviada';
+                  const typeLabel = getTransactionTypeLabel(log.type);
                   return (
                     <tr key={log.id}>
                       <td>{new Date(log.created_at).toLocaleDateString()}</td>

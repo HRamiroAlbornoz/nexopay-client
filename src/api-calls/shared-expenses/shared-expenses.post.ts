@@ -1,22 +1,11 @@
 import { z } from 'zod';
 import { API_BASE_URL } from '../../lib/apiConfig';
 import { sharedExpenseSchema } from '../../types/shared-expense.types';
+import { transactionSchema } from '../../types/transaction.types';
 import { parseApiResponse } from '../../lib/apiError';
 import type { CurrencyCode } from '../../types/currency.types';
 
 // ─── Esquema de respuesta settle ─────────────────────────────────────────────
-const transactionSchema = z.object({
-  id:            z.string(),
-  type:          z.enum(['buy', 'sell', 'exchange', 'transfer_in', 'transfer_out']),
-  currency_from: z.enum(['ARS', 'USD', 'EUR']),
-  currency_to:   z.enum(['ARS', 'USD', 'EUR']),
-  amount_from:   z.number(),
-  amount_to:     z.number(),
-  exchange_rate: z.number(),
-  created_at:    z.string(),
-  desc:          z.string().optional(),
-});
-
 const settleResponseSchema = z.object({
   expense:     sharedExpenseSchema,
   transaction: transactionSchema,
