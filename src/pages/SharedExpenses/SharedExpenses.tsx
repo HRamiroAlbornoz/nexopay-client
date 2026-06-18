@@ -1,20 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSharedExpenses } from '../../hooks/useSharedExpenses';
 import { useAuth } from '../../hooks/useAuth';
+import { getWallet } from '../../api-calls/wallet/wallet.get';
+import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
+
+const RICHARD_WALLET_ID = '0528693b-43dc-4955-937a-496cc530b091';
 
 export default function SharedExpenses() {
   const { user } = useAuth();
-  const { expenses, addExpense } = useSharedExpenses();
+  const { expenses, addExpense, settleExpense } = useSharedExpenses();
 
+  const [myWalletId, setMyWalletId] = useState<string | null>(null);
+  const [settlingId, setSettlingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('ARS');
-  const [teammateEmail, setTeammateEmail] = useState('hernan@nexopay.com');
-  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
+  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // - Integración de gastos compartidos requerida: Implementar las rutas `GET /api/shared-expenses` y `POST /api/shared-expenses`
-  //   que inserten registros automáticamente en las tablas `shared_expenses` y `shared_expense_members`.
+  useEffect(() => {
+    getWallet()
+      .then((wallet) => setMyWalletId(wallet.id))
+      .catch(() => setMyWalletId(null));
+  }, []);
 
   const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,30 +38,47 @@ export default function SharedExpenses() {
       return;
     }
 
+    if (!myWalletId) {
+      setAlert({ message: 'No se pudo identificar tu billetera. Intenta de nuevo.', type: 'error' });
+      return;
+    }
+
     const halfShare = amount / 2;
-    await addExpense({
+    const success = await addExpense({
       title,
       total_amount: amount,
       currency_code: currency,
       members: [
-        {
-          wallet_id: 'currentUser',
-          name: user ? `${user.first_name} ${user.last_name || ''}` : 'Usuario',
-          amount_owed: halfShare,
-          amount_paid: halfShare, // Creator assumes full/half pay
-        },
-        {
-          wallet_id: 'teammateUser',
-          name: teammateEmail.split('@')[0] || 'Compañero',
-          amount_owed: halfShare,
-          amount_paid: 0,
-        },
+        { wallet_id: myWalletId, amount_owed: halfShare },
+        { wallet_id: RICHARD_WALLET_ID, amount_owed: halfShare },
       ],
     });
+
+    if (!success) {
+      setAlert({ message: 'No se pudo crear el gasto compartido. Intenta de nuevo.', type: 'error' });
+      return;
+    }
 
     setTitle('');
     setTotalAmount('');
     setAlert({ message: `¡Gasto compartido "${title}" creado y dividido con éxito!`, type: 'success' });
+  };
+
+  const handleSettle = async (expenseId: string) => {
+    setAlert(null);
+    setSettlingId(expenseId);
+    const result = await settleExpense(expenseId);
+    setSettlingId(null);
+
+    if (!result.ok) {
+      setAlert({ message: result.message, type: 'error' });
+      return;
+    }
+
+    if (user) {
+      sendTransactionConfirmationEmail(result.transaction, user);
+    }
+    setAlert({ message: '¡Tu parte del gasto fue liquidada con éxito!', type: 'success' });
   };
 
   return (
@@ -69,16 +93,16 @@ export default function SharedExpenses() {
       </div>
 
       {alert && (
-        <div className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
+        <div role="alert" aria-live="assertive" className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
           <div className="toast-content">
             <span className="toast-title" style={{ fontSize: '10px' }}>
-              {alert.type === 'success' ? 'Éxito' : 'Advertencia'}
+              {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : 'Advertencia'}
             </span>
             <span className="toast-message" style={{ fontSize: '12px' }}>
               {alert.message}
             </span>
           </div>
-          <button type="button" className="toast-close" onClick={() => setAlert(null)}>&times;</button>
+          <button type="button" className="toast-close" onClick={() => setAlert(null)} aria-label="Cerrar">&times;</button>
         </div>
       )}
 
@@ -94,38 +118,57 @@ export default function SharedExpenses() {
                   <th>Total</th>
                   <th>Moneda</th>
                   <th>Miembros / Estado</th>
+                  <th>Acción</th>
                 </tr>
               </thead>
               <tbody>
-                {expenses.map((expense) => (
-                  <tr key={expense.id}>
-                    <td style={{ fontWeight: 'bold' }}>{expense.title}</td>
-                    <td>{expense.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    <td>
-                      <span className="symbol-tag" style={{ fontSize: '10.5px', padding: '2px 6px', display: 'inline-block' }}>
-                        {expense.currency_code}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '12px' }}>
-                        {expense.members.map((m) => `${m.name.split(' ')[0]} ($${m.amount_paid}/${m.amount_owed})`).join(', ')}
-                      </div>
-                      <span
-                        className="badge"
-                        style={{
-                          background: expense.status === 'settled' ? 'rgba(0,230,118,0.1)' : 'rgba(255,183,0,0.1)',
-                          color: expense.status === 'settled' ? '#00e676' : '#ffb700',
-                          border: 'none',
-                          marginTop: '4px',
-                          padding: '2px 8px',
-                          fontSize: '9.5px',
-                        }}
-                      >
-                        {expense.status === 'settled' ? 'Saldado' : 'Pendiente'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {expenses.map((expense) => {
+                  const myShare = expense.members.find((m) => m.wallet_id === myWalletId);
+                  const owesMoney = myShare && myShare.amount_paid < myShare.amount_owed;
+
+                  return (
+                    <tr key={expense.id}>
+                      <td style={{ fontWeight: 'bold' }}>{expense.title}</td>
+                      <td>{expense.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td>
+                        <span className="symbol-tag" style={{ fontSize: '10.5px', padding: '2px 6px', display: 'inline-block' }}>
+                          {expense.currency_code}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ fontSize: '12px' }}>
+                          {expense.members.map((m) => `${m.name.split(' ')[0]} ($${m.amount_paid}/${m.amount_owed})`).join(', ')}
+                        </div>
+                        <span
+                          className="badge"
+                          style={{
+                            background: expense.status === 'settled' ? 'rgba(0,230,118,0.1)' : 'rgba(255,183,0,0.1)',
+                            color: expense.status === 'settled' ? '#00e676' : '#ffb700',
+                            border: 'none',
+                            marginTop: '4px',
+                            padding: '2px 8px',
+                            fontSize: '9.5px',
+                          }}
+                        >
+                          {expense.status === 'settled' ? 'Saldado' : 'Pendiente'}
+                        </span>
+                      </td>
+                      <td>
+                        {owesMoney && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            style={{ fontSize: '11px', padding: '6px 10px' }}
+                            disabled={settlingId === expense.id}
+                            onClick={() => handleSettle(expense.id)}
+                          >
+                            {settlingId === expense.id ? 'Liquidando...' : 'Liquidar mi parte'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -148,16 +191,8 @@ export default function SharedExpenses() {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="expense-teammate-input">Dividir con (Correo)</label>
-              <input
-                id="expense-teammate-input"
-                type="email"
-                placeholder="companero@nexopay.com"
-                value={teammateEmail}
-                onChange={(e) => setTeammateEmail(e.target.value)}
-                className="neon-input"
-                required
-              />
+              <label>Dividir con</label>
+              <p className="small" style={{ margin: 0 }}>Richard González</p>
             </div>
             <div className="form-group">
               <label htmlFor="expense-currency-select">Moneda</label>

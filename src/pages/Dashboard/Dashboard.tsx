@@ -1,18 +1,33 @@
-import { useState, useMemo, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useWallet } from '../../hooks/useWallet';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useExchangeRate } from '../../hooks/useExchangeRate';
+import { createBuyTransaction } from '../../api-calls/transactions/transactions.post';
+import { getBalanceHistory } from '../../api-calls/wallet/wallet.get';
+import { ApiError } from '../../lib/apiError';
+import { isPositiveTransaction, getTransactionTypeLabel } from '../../lib/transactionLabels';
+import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
+import BalanceChart, { type BalanceDataPoint } from '../../components/charts/BalanceChart/BalanceChart';
+import TransactionTimeline from '../../components/charts/TransactionTimeline/TransactionTimeline';
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { balances, updateBalance } = useWallet();
-  const { transactions, addTransaction } = useTransactions();
+  const { transactions, refetch: refetchTransactions } = useTransactions();
   const { rates } = useExchangeRate();
 
   const [depAmount, setDepAmount] = useState('');
-  const [depSymbol, setDepSymbol] = useState<'ARS' | 'USD' | 'EUR'>('USD');
+  const [depSymbol, setDepSymbol] = useState<'USD' | 'EUR'>('USD');
+  const [isBuying, setIsBuying] = useState(false);
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+  const [balanceHistory, setBalanceHistory] = useState<BalanceDataPoint[]>([]);
+
+  useEffect(() => {
+    getBalanceHistory(7)
+      .then(setBalanceHistory)
+      .catch(() => setBalanceHistory([]));
+  }, []);
 
   // Valor estimado total de la cartera en USD
   const assetDetails = useMemo(() => {
@@ -35,23 +50,45 @@ export default function Dashboard() {
   const handleDepositSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setAlert(null);
-    const amount = Number(depAmount);
-    if (!depAmount || amount <= 0) {
+    const arsAmount = Number(depAmount);
+    if (!depAmount || arsAmount <= 0) {
       setAlert({ message: 'Ingresa un monto válido mayor a cero.', type: 'warning' });
       return;
     }
-    // Al no haber endpoint de depósito en el backend, simulamos solo visualmente
-    updateBalance(depSymbol, amount);
-    await addTransaction({
-      type: 'buy',
-      currency_from: 'ARS',
-      currency_to: depSymbol,
-      amount_from: depSymbol === 'ARS' ? amount : amount * 900,
-      amount_to: amount,
-      exchange_rate: depSymbol === 'ARS' ? 1.0 : depSymbol === 'EUR' ? 1.0854 : 1.0,
-    });
-    setDepAmount('');
-    setAlert({ message: `¡Ingreso de ${amount} ${depSymbol} registrado con éxito! (Simulado)`, type: 'success' });
+
+    const currentArs = balances.find((b) => b.currency_code === 'ARS')?.amount ?? 0;
+    if (arsAmount > currentArs) {
+      setAlert({ message: 'Saldo en ARS insuficiente para esta compra.', type: 'error' });
+      return;
+    }
+
+    setIsBuying(true);
+    try {
+      const transaction = await createBuyTransaction({ currency_to: depSymbol, amount_from: arsAmount });
+      updateBalance('ARS', -transaction.amount_from);
+      updateBalance(depSymbol, transaction.amount_to);
+      await refetchTransactions();
+      if (user) {
+        sendTransactionConfirmationEmail(transaction, user);
+      }
+      setDepAmount('');
+      setAlert({
+        message: `¡Compraste ${transaction.amount_to.toFixed(2)} ${depSymbol} por ${transaction.amount_from.toFixed(2)} ARS!`,
+        type: 'success',
+      });
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.isUnauthorized()) {
+          logout();
+          return;
+        }
+        setAlert({ message: err.message, type: 'error' });
+      } else {
+        setAlert({ message: 'No se pudo completar la compra.', type: 'error' });
+      }
+    } finally {
+      setIsBuying(false);
+    }
   };
 
 
@@ -68,14 +105,14 @@ export default function Dashboard() {
       </div>
 
       {alert && (
-        <div className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
+        <div role="alert" aria-live="assertive" className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
           <div className="toast-content">
             <span className="toast-title" style={{ fontSize: '10px' }}>
               {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : 'Advertencia'}
             </span>
             <span className="toast-message" style={{ fontSize: '12px' }}>{alert.message}</span>
           </div>
-          <button type="button" className="toast-close" onClick={() => setAlert(null)}>&times;</button>
+          <button type="button" className="toast-close" onClick={() => setAlert(null)} aria-label="Cerrar">&times;</button>
         </div>
       )}
 
@@ -112,30 +149,43 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Deposit Form */}
+        {/* Buy Form */}
         <div className="dashboard-sub-panel">
-          <div className="dashboard-section-title">Ingresar Fondos</div>
+          <div className="dashboard-section-title">Comprar Divisa</div>
           <form className="deposit-form" onSubmit={handleDepositSubmit}>
             <div className="form-group">
-              <label>Divisa activa</label>
-              <select className="form-select" value={depSymbol} onChange={(e) => setDepSymbol(e.target.value as 'ARS' | 'USD' | 'EUR')}>
+              <label>Divisa a comprar</label>
+              <select className="form-select" value={depSymbol} onChange={(e) => setDepSymbol(e.target.value as 'USD' | 'EUR')}>
                 <option value="USD">USD - Dólar Estadounidense</option>
                 <option value="EUR">EUR - Euro</option>
-                <option value="ARS">ARS - Peso Argentino</option>
               </select>
             </div>
             <div className="form-group">
-              <label>Monto</label>
+              <label>Monto en ARS a gastar</label>
               <input
                 type="number" placeholder="0.00" value={depAmount}
                 onChange={(e) => setDepAmount(e.target.value)}
                 className="neon-input" min="0" step="any" required
               />
             </div>
-            <button type="submit" className="btn btn-primary wide" style={{ marginTop: '10px' }}>
-              Registrar Ingreso
+            <button type="submit" disabled={isBuying} className="btn btn-primary wide" style={{ marginTop: '10px' }}>
+              {isBuying ? 'Comprando...' : 'Comprar'}
             </button>
           </form>
+        </div>
+      </div>
+
+      <div className="dashboard-content-split" style={{ marginBottom: 20 }}>
+        {/* Balance evolution */}
+        <div className="dashboard-sub-panel">
+          <div className="dashboard-section-title">Evolución de Balances</div>
+          <BalanceChart data={balanceHistory} />
+        </div>
+
+        {/* Transaction timeline */}
+        <div className="dashboard-sub-panel">
+          <div className="dashboard-section-title">Timeline de Transacciones</div>
+          <TransactionTimeline transactions={transactions} />
         </div>
       </div>
 
@@ -155,16 +205,12 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {transactions.slice(0, 4).map((log) => {
-                  const isPositive = log.type === 'buy' || log.type === 'transfer_in';
+                  const isPositive = isPositiveTransaction(log.type);
                   const absAmount = log.amount_to;
                   const formattedAmt = isPositive
                     ? `+${absAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                     : `-${absAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-                  const typeLabel =
-                    log.type === 'buy'         ? 'Compra' :
-                    log.type === 'sell'        ? 'Venta' :
-                    log.type === 'exchange'    ? 'Conversión' :
-                    log.type === 'transfer_in' ? 'Transf. Recibida' : 'Transf. Enviada';
+                  const typeLabel = getTransactionTypeLabel(log.type);
                   return (
                     <tr key={log.id}>
                       <td>{new Date(log.created_at).toLocaleDateString()}</td>

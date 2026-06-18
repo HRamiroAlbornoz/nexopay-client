@@ -1,23 +1,30 @@
 import { useState, useMemo } from 'react';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useWallet } from '../../hooks/useWallet';
+import { useAuth } from '../../hooks/useAuth';
+import {
+  createBuyTransaction,
+  createSellTransaction,
+  createExchangeTransaction,
+} from '../../api-calls/transactions/transactions.post';
+import { ApiError } from '../../lib/apiError';
+import { isPositiveTransaction, getTransactionTypeLabel } from '../../lib/transactionLabels';
+import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
+import type { CurrencyCode } from '../../types/currency.types';
 
 export default function Transactions() {
-  const { transactions, addTransaction } = useTransactions();
+  const { user, logout } = useAuth();
+  const { transactions, refetch: refetchTransactions } = useTransactions();
   const { balances, updateBalance } = useWallet();
 
-  const [fromCurrency, setFromCurrency] = useState<'ARS' | 'USD' | 'EUR'>('ARS');
-  const [toCurrency, setToCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
+  const [fromCurrency, setFromCurrency] = useState<CurrencyCode>('ARS');
+  const [toCurrency, setToCurrency] = useState<CurrencyCode>('USD');
   const [amount, setAmount] = useState('');
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
   const [isConverting, setIsConverting] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 5;
-
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // - Integración del backend para conversión: Implementar la ruta `POST /api/transactions/exchange`
-  //   que valide las tasas, reste de `amount_from` y sume `amount_to` en los balances del usuario.
 
   const totalLogs = transactions.length;
   const totalPages = Math.max(1, Math.ceil(totalLogs / pageSize));
@@ -42,7 +49,6 @@ export default function Transactions() {
       return;
     }
 
-    // Check balance
     const currentBalance = balances.find((b) => b.currency_code === fromCurrency)?.amount || 0;
     if (convertAmount > currentBalance) {
       setAlert({ message: 'Saldo insuficiente para completar esta conversión.', type: 'error' });
@@ -50,42 +56,40 @@ export default function Transactions() {
     }
 
     setIsConverting(true);
+    try {
+      const transaction =
+        fromCurrency === 'ARS'
+          ? await createBuyTransaction({ currency_to: toCurrency as Exclude<CurrencyCode, 'ARS'>, amount_from: convertAmount })
+          : toCurrency === 'ARS'
+          ? await createSellTransaction({ currency_from: fromCurrency as Exclude<CurrencyCode, 'ARS'>, amount_from: convertAmount })
+          : await createExchangeTransaction({ currency_from: fromCurrency, currency_to: toCurrency, amount_from: convertAmount });
 
-    // Mock exchange rate conversion logic
-    // USD/ARS = 900, EUR/ARS = 1000, EUR/USD = 1.085
-    let rate = 1.0;
-    if (fromCurrency === 'ARS' && toCurrency === 'USD') rate = 0.0011;
-    else if (fromCurrency === 'ARS' && toCurrency === 'EUR') rate = 0.001;
-    else if (fromCurrency === 'USD' && toCurrency === 'ARS') rate = 900;
-    else if (fromCurrency === 'USD' && toCurrency === 'EUR') rate = 0.92;
-    else if (fromCurrency === 'EUR' && toCurrency === 'ARS') rate = 1000;
-    else if (fromCurrency === 'EUR' && toCurrency === 'USD') rate = 1.085;
-
-    const convertedVal = convertAmount * rate;
-
-    setTimeout(async () => {
-      // Record transaction
-      await addTransaction({
-        type: 'exchange',
-        currency_from: fromCurrency,
-        currency_to: toCurrency,
-        amount_from: convertAmount,
-        amount_to: convertedVal,
-        exchange_rate: rate,
-      });
-
-      // Update balances locally (immutable update via setWallet)
-      updateBalance(fromCurrency, -convertAmount);
-      updateBalance(toCurrency, convertedVal);
+      updateBalance(fromCurrency, -transaction.amount_from);
+      updateBalance(toCurrency, transaction.amount_to);
+      await refetchTransactions();
+      if (user) {
+        sendTransactionConfirmationEmail(transaction, user);
+      }
 
       setAlert({
-        message: `¡Conversión exitosa! Has cambiado ${convertAmount} ${fromCurrency} por ${convertedVal.toFixed(2)} ${toCurrency}.`,
+        message: `¡Conversión exitosa! Cambiaste ${transaction.amount_from.toFixed(2)} ${fromCurrency} por ${transaction.amount_to.toFixed(2)} ${toCurrency}.`,
         type: 'success',
       });
       setAmount('');
       setCurrentPage(1);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.isUnauthorized()) {
+          logout();
+          return;
+        }
+        setAlert({ message: err.message, type: 'error' });
+      } else {
+        setAlert({ message: 'No se pudo completar la conversión.', type: 'error' });
+      }
+    } finally {
       setIsConverting(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -100,7 +104,7 @@ export default function Transactions() {
       </div>
 
       {alert && (
-        <div className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
+        <div role="alert" aria-live="assertive" className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
           <div className="toast-content">
             <span className="toast-title" style={{ fontSize: '10px' }}>
               {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : 'Advertencia'}
@@ -109,7 +113,7 @@ export default function Transactions() {
               {alert.message}
             </span>
           </div>
-          <button type="button" className="toast-close" onClick={() => setAlert(null)}>&times;</button>
+          <button type="button" className="toast-close" onClick={() => setAlert(null)} aria-label="Cerrar">&times;</button>
         </div>
       )}
 
@@ -129,15 +133,12 @@ export default function Transactions() {
               </thead>
               <tbody>
                 {paginatedLogs.map((log) => {
-                  const isPositive = log.type === 'buy' || log.type === 'transfer_in';
+                  const isPositive = isPositiveTransaction(log.type);
                   const absAmount = log.amount_to;
                   const formattedAmt = isPositive
                     ? `+${absAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                     : `-${absAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-                  const typeLabel = log.type === 'buy' ? 'Compra' :
-                                    log.type === 'sell' ? 'Venta' :
-                                    log.type === 'exchange' ? 'Conversión' :
-                                    log.type === 'transfer_in' ? 'Transferencia Recibida' : 'Transferencia Enviada';
+                  const typeLabel = getTransactionTypeLabel(log.type);
 
                   return (
                     <tr key={log.id}>

@@ -2,20 +2,7 @@ import { z } from 'zod';
 import { API_BASE_URL } from '../../lib/apiConfig';
 import { parseApiResponse } from '../../lib/apiError';
 import type { CurrencyCode } from '../../types/currency.types';
-
-// ─── Esquema de respuesta de transacción ────────────────────────────────────
-
-const transactionResponseSchema = z.object({
-  id:            z.string(),
-  type:          z.enum(['buy', 'sell', 'exchange', 'transfer_in', 'transfer_out']),
-  currency_from: z.enum(['ARS', 'USD', 'EUR']),
-  currency_to:   z.enum(['ARS', 'USD', 'EUR']),
-  amount_from:   z.number(),
-  amount_to:     z.number(),
-  exchange_rate: z.number(),
-  created_at:    z.string(),
-  desc:          z.string().optional(),
-});
+import { transactionSchema as transactionResponseSchema } from '../../types/transaction.types';
 
 // Helper interno reutilizable
 async function postTransaction(endpoint: string, body: Record<string, unknown>) {
@@ -27,7 +14,9 @@ async function postTransaction(endpoint: string, body: Record<string, unknown>) 
   });
 
   const raw = await parseApiResponse(res);
-  return transactionResponseSchema.parse(raw);
+  // El backend devuelve { transaction: {...} }
+  const wrapper = z.object({ transaction: transactionResponseSchema }).parse(raw);
+  return wrapper.transaction;
 }
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────

@@ -562,6 +562,7 @@ button {
 
 .dashboard-sub-panel {
   padding: 20px;
+  min-width: 0;
 }
 
 .dashboard-section-title {
@@ -692,6 +693,22 @@ button {
 
 .log-table-container {
   overflow-x: auto;
+  position: relative;
+}
+
+@media (max-width: 640px) {
+  .log-table-container::after {
+    content: '';
+    position: sticky;
+    top: 0;
+    right: 0;
+    float: right;
+    width: 24px;
+    height: 100%;
+    margin-left: -24px;
+    background: linear-gradient(90deg, transparent, var(--panel-bg));
+    pointer-events: none;
+  }
 }
 
 .log-table {

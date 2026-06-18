@@ -21,7 +21,7 @@ describe('transactions API wrappers', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      text: async () => JSON.stringify(mockTx),
+      text: async () => JSON.stringify({ transaction: mockTx }),
     });
 
     const res = await createBuyTransaction({ currency_to: 'USD', amount_from: 1000 });

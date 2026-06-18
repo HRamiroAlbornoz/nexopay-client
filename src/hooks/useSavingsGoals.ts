@@ -1,75 +1,87 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
+import { getSavingsGoals } from '../api-calls/savings-goals/savings-goals.get';
+import { createSavingsGoal, fundSavingsGoal } from '../api-calls/savings-goals/savings-goals.post';
+import { ApiError } from '../lib/apiError';
+import type { SavingsGoal } from '../types/savings-goal.types';
+import type { Transaction } from '../types/transaction.types';
+import type { CurrencyCode } from '../types/currency.types';
 
-export interface SavingsGoal {
-  id: string;
-  title: string;
-  target_amount: number;
-  current_amount: number;
-  currency_code: 'ARS' | 'USD' | 'EUR';
-  status: 'active' | 'completed' | 'cancelled';
-  target_date: string | null;
-}
+export type { SavingsGoal };
 
 export function useSavingsGoals() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // 1. Crear las rutas `GET /api/savings-goals` y `POST /api/savings-goals` vinculadas con la tabla postgres `savings_goals`.
-  // 2. Crear las rutas `PATCH /api/savings-goals/:id` para actualizar metas o registrar contribuciones.
+  const fetchGoals = useCallback(async () => {
+    if (!user) {
+      setGoals([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getSavingsGoals();
+      setGoals(data);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.isUnauthorized()) {
+          logout();
+          return;
+        }
+        setError(err.message);
+      } else {
+        setError('No se pudieron cargar las metas de ahorro.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [user, logout]);
 
   useEffect(() => {
-    if (!user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchGoals es un callback estable; patrón establecido en useTransactions/useWallet
+    void fetchGoals();
+  }, [fetchGoals]);
 
-    const timer = setTimeout(() => {
-      const mockGoals: SavingsGoal[] = [
-        {
-          id: '1sg',
-          title: 'Viaje a Europa',
-          target_amount: 5000,
-          current_amount: 500,
-          currency_code: 'USD',
-          status: 'active',
-          target_date: '2026-12-31',
-        },
-        {
-          id: '2sg',
-          title: 'Auto nuevo',
-          target_amount: 10000,
-          current_amount: 2000,
-          currency_code: 'USD',
-          status: 'active',
-          target_date: '2027-06-30',
-        },
-        {
-          id: '3sg',
-          title: 'Fondo de emergencia',
-          target_amount: 1000,
-          current_amount: 1000,
-          currency_code: 'USD',
-          status: 'completed',
-          target_date: null,
-        },
-      ];
+  const addGoal = useCallback(async (payload: {
+    title: string;
+    target_amount: number;
+    currency_code: CurrencyCode;
+    target_date: string | null;
+  }): Promise<boolean> => {
+    try {
+      const goal = await createSavingsGoal(payload);
+      setGoals((prev) => [goal, ...prev]);
+      return true;
+    } catch (err) {
+      if (err instanceof ApiError && err.isUnauthorized()) {
+        logout();
+      }
+      return false;
+    }
+  }, [logout]);
 
-      setGoals(mockGoals);
-      setLoading(false);
-    }, 450);
+  const fundGoal = useCallback(async (
+    id: string,
+    amount: number
+  ): Promise<{ ok: true; transaction: Transaction } | { ok: false; message: string }> => {
+    try {
+      const { goal, transaction } = await fundSavingsGoal(id, amount);
+      setGoals((prev) => prev.map((g) => (g.id === id ? goal : g)));
+      return { ok: true, transaction };
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.isUnauthorized()) {
+          logout();
+        }
+        return { ok: false, message: err.message };
+      }
+      return { ok: false, message: 'No se pudo aportar a la meta de ahorro.' };
+    }
+  }, [logout]);
 
-    return () => clearTimeout(timer);
-  }, [user]);
-
-  const addGoal = async (goal: Omit<SavingsGoal, 'id' | 'status'>) => {
-    const newGoal: SavingsGoal = {
-      ...goal,
-      id: Math.random().toString(36).substring(7),
-      status: 'active',
-    };
-    setGoals((prev) => [...prev, newGoal]);
-    return true;
-  };
-
-  return { goals, loading, addGoal };
+  return { goals, loading, error, addGoal, fundGoal, refetch: fetchGoals };
 }

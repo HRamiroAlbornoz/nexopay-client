@@ -16,8 +16,20 @@ const walletBalanceSchema = z.object({
 
 const walletBalancesSchema = z.array(walletBalanceSchema);
 
-export type WalletInfo    = z.infer<typeof walletInfoSchema>;
-export type WalletBalance = z.infer<typeof walletBalanceSchema>;
+const balanceHistoryPointSchema = z.object({
+  date: z.string(),
+  ARS:  z.number(),
+  USD:  z.number(),
+  EUR:  z.number(),
+});
+
+const balanceHistoryResponseSchema = z.object({
+  history: z.array(balanceHistoryPointSchema),
+});
+
+export type WalletInfo         = z.infer<typeof walletInfoSchema>;
+export type WalletBalance      = z.infer<typeof walletBalanceSchema>;
+export type BalanceHistoryPoint = z.infer<typeof balanceHistoryPointSchema>;
 
 // ─── API calls ───────────────────────────────────────────────────────────────
 
@@ -39,4 +51,16 @@ export async function getWalletBalances(): Promise<WalletBalance[]> {
   const res = await fetch(`${API_BASE_URL}/wallet/balances`, { credentials: 'include' });
   const raw = await parseApiResponse(res);
   return walletBalancesSchema.parse(raw);
+}
+
+/**
+ * GET /api/wallet/balance-history?days=
+ * Devuelve un punto por día con el balance por moneda, sin huecos
+ * (carry-forward). Default 7 días, máximo 90.
+ */
+export async function getBalanceHistory(days = 7): Promise<BalanceHistoryPoint[]> {
+  const res = await fetch(`${API_BASE_URL}/wallet/balance-history?days=${days}`, { credentials: 'include' });
+  const raw = await parseApiResponse(res);
+  const { history } = balanceHistoryResponseSchema.parse(raw);
+  return history;
 }
