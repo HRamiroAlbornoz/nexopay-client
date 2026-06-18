@@ -95,6 +95,7 @@ export default function Landing() {
         email: 'richard@nexopay.com',
         first_name: 'Richard',
         last_name: 'González',
+        role: 'user' as const,
       };
       login(mockUser);
       setAlert({ message: 'Modo demo activado (local/offline). Redirigiendo...', type: 'info' });
