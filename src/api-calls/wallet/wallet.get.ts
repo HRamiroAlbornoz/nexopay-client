@@ -1,30 +1,42 @@
 import { z } from 'zod';
 import { API_BASE_URL } from '../../lib/apiConfig';
+import { parseApiResponse } from '../../lib/apiError';
+
+// ─── Esquemas ────────────────────────────────────────────────────────────────
+
+const walletInfoSchema = z.object({
+  id:         z.string(),
+  created_at: z.string(),
+});
 
 const walletBalanceSchema = z.object({
   currency_code: z.enum(['ARS', 'USD', 'EUR']),
-  amount: z.number(),
+  amount:        z.number(),
 });
 
-const walletSchema = z.object({
-  id: z.string(),
-  user_id: z.string(),
-  balances: z.array(walletBalanceSchema),
-});
+const walletBalancesSchema = z.array(walletBalanceSchema);
+
+export type WalletInfo    = z.infer<typeof walletInfoSchema>;
+export type WalletBalance = z.infer<typeof walletBalanceSchema>;
+
+// ─── API calls ───────────────────────────────────────────────────────────────
 
 /**
  * GET /api/wallet
- * Devuelve la billetera del usuario autenticado con sus balances.
- * Requiere cookie httpOnly — usar credentials: 'include'.
+ * Devuelve el id y fecha de creación de la billetera del usuario autenticado.
  */
-export async function getWallet() {
-  const res = await fetch(`${API_BASE_URL}/wallet`, {
-    credentials: 'include',
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(body.message ?? `Error ${res.status} al obtener billetera`);
-  }
-  const raw: unknown = await res.json();
-  return walletSchema.parse(raw);
+export async function getWallet(): Promise<WalletInfo> {
+  const res = await fetch(`${API_BASE_URL}/wallet`, { credentials: 'include' });
+  const raw = await parseApiResponse(res);
+  return walletInfoSchema.parse(raw);
+}
+
+/**
+ * GET /api/wallet/balances
+ * Devuelve los balances por moneda: [{ currency_code, amount }] × 3 (ARS, USD, EUR).
+ */
+export async function getWalletBalances(): Promise<WalletBalance[]> {
+  const res = await fetch(`${API_BASE_URL}/wallet/balances`, { credentials: 'include' });
+  const raw = await parseApiResponse(res);
+  return walletBalancesSchema.parse(raw);
 }
