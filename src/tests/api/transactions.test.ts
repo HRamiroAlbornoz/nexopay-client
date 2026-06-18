@@ -18,11 +18,11 @@ describe('transactions API wrappers', () => {
       created_at: new Date().toISOString(),
     };
 
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       text: async () => JSON.stringify(mockTx),
-    });
+    }));
 
     const res = await createBuyTransaction({ currency_to: 'USD', amount_from: 1000 });
     expect(res).toBeTruthy();
@@ -31,11 +31,11 @@ describe('transactions API wrappers', () => {
   });
 
   it('createBuyTransaction throws ApiError on 422', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
       status: 422,
       text: async () => JSON.stringify({ code: 'INSUFFICIENT_BALANCE', message: 'Saldo insuficiente' }),
-    });
+    }));
 
     await expect(createBuyTransaction({ currency_to: 'USD', amount_from: 1000 })).rejects.toMatchObject({
       code: 'INSUFFICIENT_BALANCE',

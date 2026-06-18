@@ -1,17 +1,18 @@
 import { useState, type FormEvent } from 'react';
 import { useWallet } from '../../hooks/useWallet';
+import { useAuth } from '../../hooks/useAuth';
+import { createTransfer } from '../../api-calls/transactions/transactions.post';
+import { sendConfirmationEmail } from '../../api-calls/email/email.post';
+import { ApiError } from '../../lib/apiError';
 
 export default function Wallet() {
+  const { user } = useAuth();
   const { balances, updateBalance } = useWallet();
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
   const [recipient, setRecipient] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
-
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // - Ruta de transferencia requerida: Implementar la ruta `POST /api/wallet/transfer` que reciba { recipient_email, currency_code, amount },
-  //   verifique que el emisor tenga fondos suficientes, reste de su saldo y sume al del destinatario.
 
   const handleTransfer = async (e: FormEvent) => {
     e.preventDefault();
@@ -22,31 +23,66 @@ export default function Wallet() {
       setAlert({ message: 'Ingresa un monto válido mayor a cero.', type: 'warning' });
       return;
     }
-
     if (!recipient) {
       setAlert({ message: 'Por favor, ingresa el correo del destinatario.', type: 'warning' });
       return;
     }
 
-    const currentBalance = balances.find((b) => b.currency_code === currency)?.amount || 0;
+    const currentBalance = balances.find((b) => b.currency_code === currency)?.amount ?? 0;
     if (transferAmount > currentBalance) {
       setAlert({ message: 'Saldo insuficiente para realizar esta transferencia.', type: 'error' });
       return;
     }
 
     setIsSubmitting(true);
-    // Simulate transaction delay
-    setTimeout(() => {
-      // Deduct funds locally (immutable update via setWallet)
+    try {
+      await createTransfer({
+        recipient_email: recipient,
+        currency_code: currency,
+        amount: transferAmount,
+      });
+      // Actualización optimista del balance local
       updateBalance(currency, -transferAmount);
       setAlert({
         message: `¡Transferencia de ${transferAmount} ${currency} enviada con éxito a ${recipient}!`,
         type: 'success',
       });
+
+      // Disparar email de confirmación sin bloquear el hilo principal
+      if (user?.email) {
+        sendConfirmationEmail({
+          to: user.email,
+          subject: 'Comprobante de Transferencia - NexoPay',
+          html: `
+            <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+              <h2 style="color: #00e676;">Transferencia Exitosa</h2>
+              <p>Hola <strong>${user.first_name}</strong>,</p>
+              <p>Has enviado fondos exitosamente a través de NexoPay. Aquí tienes el detalle de tu operación:</p>
+              <ul style="background: #f9f9f9; padding: 15px; border-radius: 4px; list-style: none;">
+                <li><strong>Destinatario:</strong> ${recipient}</li>
+                <li><strong>Monto:</strong> ${transferAmount} ${currency}</li>
+                <li><strong>Fecha:</strong> ${new Date().toLocaleString('es-AR')}</li>
+              </ul>
+              <p>Gracias por confiar en NexoPay.</p>
+            </div>
+          `,
+        }).catch(() => { /* El error ya se loguea en email.post.ts */ });
+      }
+
       setAmount('');
       setRecipient('');
+    } catch (err) {
+      let msg = 'Error al procesar la transferencia.';
+      if (err instanceof ApiError) {
+        if (err.code === 'INSUFFICIENT_BALANCE') msg = 'Saldo insuficiente en el servidor.';
+        else if (err.code === 'RECIPIENT_NOT_FOUND') msg = 'No existe ningún usuario con ese correo en Nexopay.';
+        else if (err.code === 'INVALID_TRANSFER') msg = 'No puedes transferirte fondos a ti mismo.';
+        else msg = err.message;
+      }
+      setAlert({ message: msg, type: 'error' });
+    } finally {
       setIsSubmitting(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -110,6 +146,7 @@ export default function Wallet() {
                 onChange={(e) => setRecipient(e.target.value)}
                 className="neon-input"
                 required
+                autoComplete="email"
               />
             </div>
             <div className="form-group">

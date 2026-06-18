@@ -1,8 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useWallet } from '../../hooks/useWallet';
+import { useAuth } from '../../hooks/useAuth';
+import { sendConfirmationEmail } from '../../api-calls/email/email.post';
 
 export default function Transactions() {
+  const { user } = useAuth();
   const { transactions, addTransaction } = useTransactions();
   const { balances, updateBalance } = useWallet();
 
@@ -82,6 +85,29 @@ export default function Transactions() {
         message: `¡Conversión exitosa! Has cambiado ${convertAmount} ${fromCurrency} por ${convertedVal.toFixed(2)} ${toCurrency}.`,
         type: 'success',
       });
+
+      // Disparar email de confirmación
+      if (user?.email) {
+        sendConfirmationEmail({
+          to: user.email,
+          subject: 'Comprobante de Cambio de Divisa - NexoPay',
+          html: `
+            <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+              <h2 style="color: #7c6dfa;">Conversión Exitosa</h2>
+              <p>Hola <strong>${user.first_name}</strong>,</p>
+              <p>Has realizado un cambio de divisa en NexoPay. Aquí tienes tu comprobante:</p>
+              <ul style="background: #f9f9f9; padding: 15px; border-radius: 4px; list-style: none;">
+                <li><strong>Monto debitado:</strong> ${convertAmount} ${fromCurrency}</li>
+                <li><strong>Monto acreditado:</strong> ${convertedVal.toFixed(2)} ${toCurrency}</li>
+                <li><strong>Tasa de cambio:</strong> 1 ${fromCurrency} = ${rate} ${toCurrency}</li>
+                <li><strong>Fecha:</strong> ${new Date().toLocaleString('es-AR')}</li>
+              </ul>
+              <p>Gracias por usar NexoPay.</p>
+            </div>
+          `,
+        }).catch(() => { /* error handleado en el servicio */ });
+      }
+
       setAmount('');
       setCurrentPage(1);
       setIsConverting(false);

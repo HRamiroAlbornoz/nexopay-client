@@ -19,10 +19,10 @@ const INITIAL_MESSAGE: MessageWithMeta = {
 };
 
 const QUICK_REPLIES = [
-  '💰 Ver mi saldo',
-  '📤 Hacer transferencia',
-  '🎯 Metas de ahorro',
-  '📊 Mis transacciones',
+  '💰 ¿Cuál es mi saldo actual?',
+  '💱 ¿Cuánto recibo si cambio 100 EUR a ARS?',
+  '📊 Resumen de mis gastos recientes',
+  '💡 Tips de finanzas personales',
 ];
 
 // ─── SVG Icons ────────────────────────────────────
@@ -92,7 +92,7 @@ export default function ChatWidget() {
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 180);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate one-shot update: clears notification badge when chat opens; no cascading renders
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot badge dismissal on open; no cascading renders
       setShowBadge(false);
     }
   }, [open]);
@@ -304,6 +304,7 @@ export default function ChatWidget() {
               onKeyDown={handleKeyDown}
               placeholder="Escribe tu consulta... (Enter para enviar)"
               disabled={loading}
+              maxLength={500}
               aria-label="Escribe tu consulta al asistente"
               id="chat-input-field"
             />

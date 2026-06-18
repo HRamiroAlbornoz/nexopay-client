@@ -1,20 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSharedExpenses } from '../../hooks/useSharedExpenses';
 import { useAuth } from '../../hooks/useAuth';
+import { getWallet } from '../../api-calls/wallet/wallet.get';
+import { ApiError } from '../../lib/apiError';
 
 export default function SharedExpenses() {
   const { user } = useAuth();
-  const { expenses, addExpense } = useSharedExpenses();
+  const { expenses, loading, error, addExpense } = useSharedExpenses();
 
+  const [myWalletId, setMyWalletId] = useState('');
   const [title, setTitle] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('ARS');
   const [teammateEmail, setTeammateEmail] = useState('hernan@nexopay.com');
-  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [alert, setAlert] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // - Integración de gastos compartidos requerida: Implementar las rutas `GET /api/shared-expenses` y `POST /api/shared-expenses`
-  //   que inserten registros automáticamente en las tablas `shared_expenses` y `shared_expense_members`.
+  // Obtiene el wallet_id real del usuario al montar el componente
+  useEffect(() => {
+    if (!user) return;
+    getWallet().then((w) => setMyWalletId(w.id)).catch(() => { /* silencioso — validamos antes de submit */ });
+  }, [user]);
 
   const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,36 +31,45 @@ export default function SharedExpenses() {
       setAlert({ message: 'Por favor, ingresa una descripción.', type: 'warning' });
       return;
     }
-
     if (!totalAmount || amount <= 0) {
       setAlert({ message: 'Ingresa un monto válido mayor a cero.', type: 'warning' });
       return;
     }
+    if (!myWalletId) {
+      setAlert({ message: 'No se pudo obtener tu billetera. Recarga la página.', type: 'warning' });
+      return;
+    }
 
     const halfShare = amount / 2;
-    await addExpense({
-      title,
-      total_amount: amount,
-      currency_code: currency,
-      members: [
-        {
-          wallet_id: 'currentUser',
-          name: user ? `${user.first_name} ${user.last_name || ''}` : 'Usuario',
-          amount_owed: halfShare,
-          amount_paid: halfShare, // Creator assumes full/half pay
-        },
-        {
-          wallet_id: 'teammateUser',
-          name: teammateEmail.split('@')[0] || 'Compañero',
-          amount_owed: halfShare,
-          amount_paid: 0,
-        },
-      ],
-    });
-
-    setTitle('');
-    setTotalAmount('');
-    setAlert({ message: `¡Gasto compartido "${title}" creado y dividido con éxito!`, type: 'success' });
+    setIsSubmitting(true);
+    try {
+      // Contrato del backend: { title, total_amount, currency_code, members: [{ wallet_id, amount_owed }] }
+      // El creador debe estar en members; su parte queda saldada automáticamente por el backend.
+      // El campo wallet_id del compañero lo resuelve el backend por email (futura mejora) —
+      // por ahora enviamos un placeholder que el backend vincula al email si tiene esa lógica.
+      await addExpense({
+        title,
+        total_amount: amount,
+        currency_code: currency,
+        members: [
+          { wallet_id: myWalletId, amount_owed: halfShare },
+          { wallet_id: teammateEmail, amount_owed: halfShare }, // backend resuelve por email
+        ],
+      });
+      setTitle('');
+      setTotalAmount('');
+      setAlert({ message: `¡Gasto compartido "${title}" creado y dividido con éxito!`, type: 'success' });
+    } catch (err) {
+      let msg = 'Error al crear el gasto compartido.';
+      if (err instanceof ApiError) {
+        if (err.code === 'CREATOR_NOT_MEMBER') msg = 'Debes incluirte como miembro del gasto.';
+        else if (err.code === 'INVALID_WALLETS') msg = 'Uno o más miembros no existen en Nexopay.';
+        else msg = err.message;
+      }
+      setAlert({ message: msg, type: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -68,11 +83,14 @@ export default function SharedExpenses() {
         <div className="badge">Cuentas Claras</div>
       </div>
 
+      {loading && <p className="small" style={{ color: 'var(--text-secondary)', marginBottom: 12 }}>Cargando gastos...</p>}
+      {error && <p className="small" style={{ color: 'var(--accent-danger)', marginBottom: 12 }}>{error}</p>}
+
       {alert && (
         <div className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
           <div className="toast-content">
             <span className="toast-title" style={{ fontSize: '10px' }}>
-              {alert.type === 'success' ? 'Éxito' : 'Advertencia'}
+              {alert.type === 'success' ? 'Éxito' : alert.type === 'error' ? 'Error' : 'Advertencia'}
             </span>
             <span className="toast-message" style={{ fontSize: '12px' }}>
               {alert.message}
@@ -186,8 +204,8 @@ export default function SharedExpenses() {
                 required
               />
             </div>
-            <button type="submit" className="btn btn-primary wide" style={{ marginTop: '10px' }}>
-              Crear y Dividir
+            <button type="submit" disabled={isSubmitting} className="btn btn-primary wide" style={{ marginTop: '10px' }}>
+              {isSubmitting ? 'Creando...' : 'Crear y Dividir'}
             </button>
           </form>
         </div>

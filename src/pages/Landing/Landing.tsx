@@ -68,13 +68,28 @@ export default function Landing() {
     }
   }, [googleReady, googleClientId, activeTab, login, navigate]);
 
-  /* Botón de respaldo cuando Google SDK no está listo */
+  /* Botón de respaldo cuando Google SDK no está listo (o fue bloqueado por AdBlock) */
   const handleGoogleFallback = () => {
-    if (!googleClientId || !window.google?.accounts?.id) {
-      setAlert({ message: 'Google login no está disponible en este momento.', type: 'warning' });
+    if (!googleClientId) {
+      setAlert({ message: 'Error de configuración: Falta VITE_GOOGLE_CLIENT_ID.', type: 'error' });
       return;
     }
-    window.google.accounts.id.prompt();
+    
+    // Detección proactiva de AdBlockers o Shields (ej. Brave)
+    if (typeof window.google === 'undefined' || !window.google?.accounts?.id) {
+      setAlert({ 
+        message: 'Tu navegador o bloqueador de anuncios está impidiendo la conexión con Google. Por favor, pausa el AdBlock o utiliza correo y contraseña.', 
+        type: 'warning' 
+      });
+      return;
+    }
+
+    try {
+      window.google.accounts.id.prompt();
+    } catch (err) {
+      console.error('[Nexopay] Falló el prompt de Google:', err);
+      setAlert({ message: 'El servicio de Google no respondió correctamente. Intenta nuevamente.', type: 'error' });
+    }
   };
 
   /* Inicio de sesión demo con credenciales de seed y fallback a mock */
