@@ -9,7 +9,7 @@ export interface CurrencyRate {
   price_change_percentage_24h: number;
 }
 
-function toRateList(data: RatesResponse): CurrencyRate[] {
+export function toRateList(data: RatesResponse): CurrencyRate[] {
   return [
     {
       id: 'usd',
