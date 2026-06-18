@@ -1,78 +1,66 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
+import { getSharedExpenses } from '../api-calls/shared-expenses/shared-expenses.get';
+import { createSharedExpense, settleSharedExpense } from '../api-calls/shared-expenses/shared-expenses.post';
+import { ApiError } from '../lib/apiError';
+import type { SharedExpense } from '../types/shared-expense.types';
 
-export interface SharedExpenseMember {
-  wallet_id: string;
-  name: string;
-  amount_owed: number;
-  amount_paid: number;
-}
-
-export interface SharedExpense {
-  id: string;
-  title: string;
-  total_amount: number;
-  currency_code: 'ARS' | 'USD' | 'EUR';
-  status: 'pending' | 'settled';
-  members: SharedExpenseMember[];
-  created_at: string;
-}
+// Re-export so existing consumers don't break
+export type { SharedExpense };
+export type { SharedExpenseMember } from '../types/shared-expense.types';
 
 export function useSharedExpenses() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [expenses, setExpenses] = useState<SharedExpense[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // 1. Crear las rutas `GET /api/shared-expenses` y `POST /api/shared-expenses` conectadas con las tablas `shared_expenses` y `shared_expense_members`.
-  // 2. Crear las rutas `POST /api/shared-expenses/:id/pay` para registrar las contribuciones de los miembros.
+  const fetchExpenses = useCallback(async () => {
+    if (!user) {
+      setExpenses([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getSharedExpenses();
+      setExpenses(data);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.isUnauthorized()) { logout(); return; }
+        setError(err.message);
+      } else {
+        setError('No se pudieron cargar los gastos compartidos.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [user, logout]);
 
   useEffect(() => {
-    if (!user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchExpenses is a stable callback ref; established pattern in codebase
+    void fetchExpenses();
+  }, [fetchExpenses]);
 
-    const timer = setTimeout(() => {
-      const mockExpenses: SharedExpense[] = [
-        {
-          id: '1se',
-          title: 'Cena equipo NexoPay',
-          total_amount: 6000,
-          currency_code: 'ARS',
-          status: 'pending',
-          created_at: new Date().toISOString(),
-          members: [
-            {
-              wallet_id: 'w4cae933-c80b-4a51-991d-795bcf54eb6d',
-              name: 'Hernán Albornoz',
-              amount_owed: 3000,
-              amount_paid: 3000,
-            },
-            {
-              wallet_id: 'richardWallet',
-              name: 'Richard González',
-              amount_owed: 3000,
-              amount_paid: 0,
-            },
-          ],
-        },
-      ];
+  /** Crea un gasto compartido en el backend. */
+  const addExpense = useCallback(async (payload: {
+    title: string;
+    total_amount: number;
+    currency_code: 'ARS' | 'USD' | 'EUR';
+    members: { wallet_id: string; amount_owed: number }[];
+  }): Promise<SharedExpense> => {
+    const expense = await createSharedExpense(payload);
+    setExpenses((prev) => [expense, ...prev]);
+    return expense;
+  }, []);
 
-      setExpenses(mockExpenses);
-      setLoading(false);
-    }, 500);
+  /** Liquida la deuda del usuario autenticado en un gasto compartido. */
+  const settleExpense = useCallback(async (id: string) => {
+    const { expense } = await settleSharedExpense(id);
+    setExpenses((prev) => prev.map((e) => (e.id === id ? expense : e)));
+    return expense;
+  }, []);
 
-    return () => clearTimeout(timer);
-  }, [user]);
-
-  const addExpense = async (expense: Omit<SharedExpense, 'id' | 'status' | 'created_at'>) => {
-    const newExpense: SharedExpense = {
-      ...expense,
-      id: Math.random().toString(36).substring(7),
-      status: 'pending',
-      created_at: new Date().toISOString(),
-    };
-    setExpenses((prev) => [...prev, newExpense]);
-    return true;
-  };
-
-  return { expenses, loading, addExpense };
+  return { expenses, loading, error, addExpense, settleExpense, refetch: fetchExpenses };
 }

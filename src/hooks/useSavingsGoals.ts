@@ -1,75 +1,65 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
+import { getSavingsGoals } from '../api-calls/savings-goals/savings-goals.get';
+import { createSavingsGoal, fundSavingsGoal } from '../api-calls/savings-goals/savings-goals.post';
+import { ApiError } from '../lib/apiError';
+import type { SavingsGoal } from '../types/savings-goal.types';
 
-export interface SavingsGoal {
-  id: string;
-  title: string;
-  target_amount: number;
-  current_amount: number;
-  currency_code: 'ARS' | 'USD' | 'EUR';
-  status: 'active' | 'completed' | 'cancelled';
-  target_date: string | null;
-}
+// Re-export so existing consumers don't break
+export type { SavingsGoal };
 
 export function useSavingsGoals() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // TAREA PENDIENTE EN EL BACKEND PARA HERNÁN ALBORNOZ:
-  // 1. Crear las rutas `GET /api/savings-goals` y `POST /api/savings-goals` vinculadas con la tabla postgres `savings_goals`.
-  // 2. Crear las rutas `PATCH /api/savings-goals/:id` para actualizar metas o registrar contribuciones.
+  const fetchGoals = useCallback(async () => {
+    if (!user) {
+      setGoals([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getSavingsGoals();
+      setGoals(data);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.isUnauthorized()) { logout(); return; }
+        setError(err.message);
+      } else {
+        setError('No se pudieron cargar las metas de ahorro.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [user, logout]);
 
   useEffect(() => {
-    if (!user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchGoals is a stable callback ref; established pattern in codebase
+    void fetchGoals();
+  }, [fetchGoals]);
 
-    const timer = setTimeout(() => {
-      const mockGoals: SavingsGoal[] = [
-        {
-          id: '1sg',
-          title: 'Viaje a Europa',
-          target_amount: 5000,
-          current_amount: 500,
-          currency_code: 'USD',
-          status: 'active',
-          target_date: '2026-12-31',
-        },
-        {
-          id: '2sg',
-          title: 'Auto nuevo',
-          target_amount: 10000,
-          current_amount: 2000,
-          currency_code: 'USD',
-          status: 'active',
-          target_date: '2027-06-30',
-        },
-        {
-          id: '3sg',
-          title: 'Fondo de emergencia',
-          target_amount: 1000,
-          current_amount: 1000,
-          currency_code: 'USD',
-          status: 'completed',
-          target_date: null,
-        },
-      ];
+  /** Crea una meta en el backend y la agrega al estado local. */
+  const addGoal = useCallback(async (payload: {
+    title: string;
+    target_amount: number;
+    currency_code: 'ARS' | 'USD' | 'EUR';
+    target_date?: string | null;
+  }): Promise<SavingsGoal> => {
+    const goal = await createSavingsGoal(payload);
+    setGoals((prev) => [goal, ...prev]);
+    return goal;
+  }, []);
 
-      setGoals(mockGoals);
-      setLoading(false);
-    }, 450);
+  /** Contribuye un monto a una meta activa y sincroniza el estado. */
+  const fundGoal = useCallback(async (id: string, amount: number) => {
+    const { goal } = await fundSavingsGoal(id, amount);
+    setGoals((prev) => prev.map((g) => (g.id === id ? goal : g)));
+    return goal;
+  }, []);
 
-    return () => clearTimeout(timer);
-  }, [user]);
-
-  const addGoal = async (goal: Omit<SavingsGoal, 'id' | 'status'>) => {
-    const newGoal: SavingsGoal = {
-      ...goal,
-      id: Math.random().toString(36).substring(7),
-      status: 'active',
-    };
-    setGoals((prev) => [...prev, newGoal]);
-    return true;
-  };
-
-  return { goals, loading, addGoal };
+  return { goals, loading, error, addGoal, fundGoal, refetch: fetchGoals };
 }
