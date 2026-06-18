@@ -3,10 +3,11 @@ import { useWallet } from '../../hooks/useWallet';
 import { useAuth } from '../../hooks/useAuth';
 import { createTransfer } from '../../api-calls/transactions/transactions.post';
 import { ApiError } from '../../lib/apiError';
+import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
 
 export default function Wallet() {
   const { balances, updateBalance } = useWallet();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('USD');
   const [recipient, setRecipient] = useState('');
@@ -36,8 +37,11 @@ export default function Wallet() {
 
     setIsSubmitting(true);
     try {
-      await createTransfer({ recipient_email: recipient, currency_code: currency, amount: transferAmount });
+      const transaction = await createTransfer({ recipient_email: recipient, currency_code: currency, amount: transferAmount });
       updateBalance(currency, -transferAmount);
+      if (user) {
+        sendTransactionConfirmationEmail(transaction, user);
+      }
       setAlert({
         message: `¡Transferencia de ${transferAmount} ${currency} enviada con éxito a ${recipient}!`,
         type: 'success',

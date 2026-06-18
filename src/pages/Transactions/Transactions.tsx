@@ -9,10 +9,11 @@ import {
 } from '../../api-calls/transactions/transactions.post';
 import { ApiError } from '../../lib/apiError';
 import { isPositiveTransaction, getTransactionTypeLabel } from '../../lib/transactionLabels';
+import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
 import type { CurrencyCode } from '../../types/currency.types';
 
 export default function Transactions() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const { transactions, refetch: refetchTransactions } = useTransactions();
   const { balances, updateBalance } = useWallet();
 
@@ -66,6 +67,9 @@ export default function Transactions() {
       updateBalance(fromCurrency, -transaction.amount_from);
       updateBalance(toCurrency, transaction.amount_to);
       await refetchTransactions();
+      if (user) {
+        sendTransactionConfirmationEmail(transaction, user);
+      }
 
       setAlert({
         message: `¡Conversión exitosa! Cambiaste ${transaction.amount_from.toFixed(2)} ${fromCurrency} por ${transaction.amount_to.toFixed(2)} ${toCurrency}.`,

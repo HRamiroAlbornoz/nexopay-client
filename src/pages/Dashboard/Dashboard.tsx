@@ -7,6 +7,7 @@ import { createBuyTransaction } from '../../api-calls/transactions/transactions.
 import { getBalanceHistory } from '../../api-calls/wallet/wallet.get';
 import { ApiError } from '../../lib/apiError';
 import { isPositiveTransaction, getTransactionTypeLabel } from '../../lib/transactionLabels';
+import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
 import BalanceChart, { type BalanceDataPoint } from '../../components/charts/BalanceChart/BalanceChart';
 import TransactionTimeline from '../../components/charts/TransactionTimeline/TransactionTimeline';
 
@@ -67,6 +68,9 @@ export default function Dashboard() {
       updateBalance('ARS', -transaction.amount_from);
       updateBalance(depSymbol, transaction.amount_to);
       await refetchTransactions();
+      if (user) {
+        sendTransactionConfirmationEmail(transaction, user);
+      }
       setDepAmount('');
       setAlert({
         message: `¡Compraste ${transaction.amount_to.toFixed(2)} ${depSymbol} por ${transaction.amount_from.toFixed(2)} ARS!`,
