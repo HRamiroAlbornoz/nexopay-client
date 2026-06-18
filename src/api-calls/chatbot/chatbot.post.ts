@@ -1,4 +1,11 @@
+// ─── Llamada al asistente Nexo de NexoPay ────────────────────────────────────
+//
+// Envía mensajes directamente al backend real en `${API_BASE_URL}/chatbot`.
+// El backend se encarga de la verificación de sesión y de construir el contexto.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { API_BASE_URL } from '../../lib/apiConfig';
+import { parseApiResponse } from '../../lib/apiError';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -6,26 +13,19 @@ export interface ChatMessage {
 }
 
 /**
- * POST /api/chatbot
- * Envía un mensaje al asistente virtual de NexoPay.
- * El historial de conversación se pasa completo para mantener contexto.
+ * Envía un mensaje al asistente Nexo de NexoPay.
+ *
+ * @param message  - Último mensaje escrito por el usuario
+ * @returns        - Respuesta de texto generada por Nexo
  */
-export async function sendChatMessage(
-  message: string,
-  history: ChatMessage[] = []
-): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}/chatbot`, {
-    method: 'POST',
+export async function sendChatMessage(message: string): Promise<string> {
+  const respuesta = await fetch(`${API_BASE_URL}/chatbot`, {
+    method:      'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, history }),
+    headers:     { 'Content-Type': 'application/json' },
+    body:        JSON.stringify({ message }),
   });
 
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(err.message ?? `Error ${res.status}`);
-  }
-
-  const data = (await res.json()) as { reply?: string; message?: string };
-  return data.reply ?? data.message ?? 'Sin respuesta del asistente.';
+  const datos = (await parseApiResponse(respuesta)) as { reply?: string; message?: string };
+  return datos.reply ?? datos.message ?? 'Sin respuesta del asistente.';
 }
