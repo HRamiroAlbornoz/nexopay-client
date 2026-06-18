@@ -542,6 +542,22 @@ button {
   gap: 8px;
 }
 
+.checkout-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.checkout-input {
+  min-width: 0;
+}
+
+.checkout-button {
+  min-width: 150px;
+  white-space: nowrap;
+}
+
 .stat-value {
   font-size: 26px;
   font-weight: 850;
@@ -934,5 +950,13 @@ button {
 
   .currency-list {
     grid-template-columns: 1fr;
+  }
+
+  .checkout-form {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-button {
+    width: 100%;
   }
 }
