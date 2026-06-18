@@ -34,6 +34,12 @@ export default function LeftPanel() {
       onMouseLeave={() => {
         if (!pinned) setCollapsed(true);
       }}
+      onFocus={() => {
+        if (!pinned) setCollapsed(false);
+      }}
+      onBlur={(e) => {
+        if (!pinned && !e.currentTarget.contains(e.relatedTarget as Node)) setCollapsed(true);
+      }}
     >
       <div className="profile">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
@@ -50,12 +56,15 @@ export default function LeftPanel() {
           )}
         </div>
         <button
+          type="button"
           className={`btn-pin ${pinned ? 'active' : ''}`}
           onClick={(event) => {
             event.stopPropagation();
             setPinned((value) => !value);
           }}
           title={pinned ? 'Desanclar' : 'Anclar'}
+          aria-label={pinned ? 'Desanclar menú de navegación' : 'Anclar menú de navegación'}
+          aria-pressed={pinned}
         >
           {pinned ? '×' : '•'}
         </button>
@@ -63,20 +72,22 @@ export default function LeftPanel() {
 
       {!collapsed && (
         <>
-          <div className="menu-list" style={{ marginTop: '20px' }}>
+          <nav className="menu-list" aria-label="Navegación principal" style={{ marginTop: '20px' }}>
             {MENU_ITEMS.map((item) => {
               const isActive = location.pathname === item.path;
               return (
                 <button
+                  type="button"
                   key={item.path}
                   className={`menu-item-neon ${isActive ? 'active' : ''}`}
                   onClick={() => navigate(item.path)}
+                  aria-current={isActive ? 'page' : undefined}
                 >
                   {item.label}
                 </button>
               );
             })}
-          </div>
+          </nav>
 
           <div className="balances-section" style={{ marginTop: '20px' }}>
             <div className="balances-title">Billetera Activa</div>

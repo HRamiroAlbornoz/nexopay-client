@@ -265,7 +265,7 @@ export default function Landing() {
 
             {/* Alert */}
             {alert && (
-              <div className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 18 }}>
+              <div role="alert" aria-live="assertive" className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 18 }}>
                 <div className="toast-content">
                   <span className="toast-title" style={{ fontSize: '10px' }}>
                     {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : alert.type === 'warning' ? 'Advertencia' : 'Info'}

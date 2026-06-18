@@ -105,14 +105,14 @@ export default function Dashboard() {
       </div>
 
       {alert && (
-        <div className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
+        <div role="alert" aria-live="assertive" className={`toast toast-${alert.type}`} style={{ pointerEvents: 'auto', animation: 'none', width: '100%', position: 'relative', right: 'auto', bottom: 'auto', marginBottom: 20 }}>
           <div className="toast-content">
             <span className="toast-title" style={{ fontSize: '10px' }}>
               {alert.type === 'error' ? 'Error' : alert.type === 'success' ? 'Éxito' : 'Advertencia'}
             </span>
             <span className="toast-message" style={{ fontSize: '12px' }}>{alert.message}</span>
           </div>
-          <button type="button" className="toast-close" onClick={() => setAlert(null)}>&times;</button>
+          <button type="button" className="toast-close" onClick={() => setAlert(null)} aria-label="Cerrar">&times;</button>
         </div>
       )}
 
