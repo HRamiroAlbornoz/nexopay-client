@@ -27,9 +27,16 @@ const balanceHistoryResponseSchema = z.object({
   history: z.array(balanceHistoryPointSchema),
 });
 
+const walletLookupSchema = z.object({
+  wallet_id:  z.string(),
+  first_name: z.string(),
+  last_name:  z.string(),
+});
+
 export type WalletInfo         = z.infer<typeof walletInfoSchema>;
 export type WalletBalance      = z.infer<typeof walletBalanceSchema>;
 export type BalanceHistoryPoint = z.infer<typeof balanceHistoryPointSchema>;
+export type WalletLookup       = z.infer<typeof walletLookupSchema>;
 
 // ─── API calls ───────────────────────────────────────────────────────────────
 
@@ -63,4 +70,16 @@ export async function getBalanceHistory(days = 7): Promise<BalanceHistoryPoint[]
   const raw = await parseApiResponse(res);
   const { history } = balanceHistoryResponseSchema.parse(raw);
   return history;
+}
+
+/**
+ * GET /api/wallet/lookup?email=
+ * Resuelve el wallet_id de otra cuenta NexoPay a partir de su email.
+ * Errores: 400 VALIDATION_ERROR, 404 RECIPIENT_NOT_FOUND,
+ * 422 CANNOT_SHARE_WITH_SELF, 429 TOO_MANY_REQUESTS.
+ */
+export async function lookupWallet(email: string): Promise<WalletLookup> {
+  const res = await fetch(`${API_BASE_URL}/wallet/lookup?email=${encodeURIComponent(email)}`, { credentials: 'include' });
+  const raw = await parseApiResponse(res);
+  return walletLookupSchema.parse(raw);
 }

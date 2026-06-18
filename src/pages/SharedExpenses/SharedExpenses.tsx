@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useSharedExpenses } from '../../hooks/useSharedExpenses';
 import { useAuth } from '../../hooks/useAuth';
-import { getWallet } from '../../api-calls/wallet/wallet.get';
+import { getWallet, lookupWallet, type WalletLookup } from '../../api-calls/wallet/wallet.get';
 import { sendTransactionConfirmationEmail } from '../../lib/transactionEmail';
+import { ApiError } from '../../lib/apiError';
 import Toast, { type ToastAlert } from '../../components/Toast/Toast';
-
-const RICHARD_WALLET_ID = '0528693b-43dc-4955-937a-496cc530b091';
 
 export default function SharedExpenses() {
   const { user } = useAuth();
@@ -18,6 +17,11 @@ export default function SharedExpenses() {
   const [currency, setCurrency] = useState<'ARS' | 'USD' | 'EUR'>('ARS');
   const [alert, setAlert] = useState<ToastAlert | null>(null);
 
+  const [teammateEmail, setTeammateEmail] = useState('');
+  const [teammate, setTeammate] = useState<WalletLookup | null>(null);
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+
   useEffect(() => {
     getWallet()
       .then((wallet) => setMyWalletId(wallet.id))
@@ -26,6 +30,36 @@ export default function SharedExpenses() {
         setMyWalletId(null);
       });
   }, []);
+
+  const handleLookupTeammate = async () => {
+    setLookupError('');
+    setTeammate(null);
+
+    if (!teammateEmail) {
+      setLookupError('Ingresá un email para buscar.');
+      return;
+    }
+
+    setIsLookingUp(true);
+    try {
+      const result = await lookupWallet(teammateEmail);
+      setTeammate(result);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.code === 'RECIPIENT_NOT_FOUND') {
+          setLookupError('No existe ninguna cuenta NexoPay con ese email.');
+        } else if (err.code === 'CANNOT_SHARE_WITH_SELF') {
+          setLookupError('No podés compartir un gasto con vos mismo.');
+        } else {
+          setLookupError(err.message);
+        }
+      } else {
+        setLookupError('No se pudo buscar esa cuenta. Intenta de nuevo.');
+      }
+    } finally {
+      setIsLookingUp(false);
+    }
+  };
 
   const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +81,11 @@ export default function SharedExpenses() {
       return;
     }
 
+    if (!teammate) {
+      setAlert({ message: 'Buscá y seleccioná con quién compartir el gasto.', type: 'warning' });
+      return;
+    }
+
     const halfShare = amount / 2;
     const result = await addExpense({
       title,
@@ -54,7 +93,7 @@ export default function SharedExpenses() {
       currency_code: currency,
       members: [
         { wallet_id: myWalletId, amount_owed: halfShare },
-        { wallet_id: RICHARD_WALLET_ID, amount_owed: halfShare },
+        { wallet_id: teammate.wallet_id, amount_owed: halfShare },
       ],
     });
 
@@ -65,13 +104,15 @@ export default function SharedExpenses() {
 
     setTitle('');
     setTotalAmount('');
+    setTeammateEmail('');
+    setTeammate(null);
     setAlert({ message: `¡Gasto compartido "${title}" creado y dividido con éxito!`, type: 'success' });
   };
 
   const getMemberDisplayName = (member: { wallet_id: string; name?: string | undefined }): string => {
     if (member.name) return member.name.split(' ')[0] ?? member.name;
     if (member.wallet_id === myWalletId) return user?.first_name ?? 'Vos';
-    if (member.wallet_id === RICHARD_WALLET_ID) return 'Richard';
+    if (teammate && member.wallet_id === teammate.wallet_id) return teammate.first_name;
     return 'Miembro';
   };
 
@@ -190,8 +231,52 @@ export default function SharedExpenses() {
               />
             </div>
             <div className="form-group">
-              <label>Dividir con</label>
-              <p className="small" style={{ margin: 0 }}>Richard González</p>
+              <label htmlFor="teammate-email-input">Dividir con (email)</label>
+              {teammate ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <p className="small" style={{ margin: 0, color: '#00e676' }}>
+                    ✓ Vas a compartir con {teammate.first_name} {teammate.last_name}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ fontSize: '11px', padding: '4px 8px' }}
+                    onClick={() => {
+                      setTeammate(null);
+                      setTeammateEmail('');
+                    }}
+                  >
+                    Cambiar
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    id="teammate-email-input"
+                    type="email"
+                    placeholder="compañero@nexopay.com"
+                    value={teammateEmail}
+                    onChange={(e) => setTeammateEmail(e.target.value)}
+                    className="neon-input"
+                    style={{ flex: 1 }}
+                    aria-describedby={lookupError ? 'teammate-email-error' : undefined}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ fontSize: '11px', padding: '6px 12px', whiteSpace: 'nowrap' }}
+                    disabled={isLookingUp}
+                    onClick={handleLookupTeammate}
+                  >
+                    {isLookingUp ? 'Buscando...' : 'Buscar'}
+                  </button>
+                </div>
+              )}
+              {lookupError && (
+                <p id="teammate-email-error" className="small" style={{ color: 'var(--accent-danger)', margin: '4px 0 0' }} aria-live="polite">
+                  {lookupError}
+                </p>
+              )}
             </div>
             <div className="form-group">
               <label htmlFor="expense-currency-select">Moneda</label>
