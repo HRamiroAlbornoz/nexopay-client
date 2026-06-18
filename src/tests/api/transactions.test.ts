@@ -18,7 +18,7 @@ describe('transactions API wrappers', () => {
       created_at: new Date().toISOString(),
     };
 
-    // @ts-ignore
+    // @ts-expect-error -- mocking global.fetch with a partial Response shape for unit testing
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -32,7 +32,7 @@ describe('transactions API wrappers', () => {
   });
 
   it('createBuyTransaction throws ApiError on 422', async () => {
-    // @ts-ignore
+    // @ts-expect-error -- mocking global.fetch with a partial Response shape for unit testing
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 422,

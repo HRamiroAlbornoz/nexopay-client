@@ -16,6 +16,7 @@ export interface WalletContextValue {
   updateBalance: (currency: CurrencyCode, delta: number) => void;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- Context and Provider are intentionally co-located; Vite HMR limitation
 export const WalletContext = createContext<WalletContextValue | null>(null);
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   // Carga inicial y recarga cuando cambia el usuario autenticado
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchBalances is a stable callback ref; void-ing it in an effect is the established pattern across this codebase
     void fetchBalances();
   }, [fetchBalances]);
 

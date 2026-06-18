@@ -20,9 +20,9 @@ const INITIAL_MESSAGE: MessageWithMeta = {
 
 const QUICK_REPLIES = [
   '💰 Ver mi saldo',
-  '📤 Hacer transferencia',
+  '📊 Mis transacciones recientes',
   '🎯 Metas de ahorro',
-  '📊 Mis transacciones',
+  '💱 Tasas de cambio actuales',
 ];
 
 // ─── SVG Icons ────────────────────────────────────
@@ -92,6 +92,7 @@ export default function ChatWidget() {
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 180);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot badge dismissal on open; no cascading renders
       setShowBadge(false);
     }
   }, [open]);
@@ -125,8 +126,7 @@ export default function ChatWidget() {
     setIsOnline(true);
 
     try {
-      const history: ChatMessage[] = messages.map(({ role, content: c }) => ({ role, content: c }));
-      const reply = await sendChatMessage(content, history);
+      const reply = await sendChatMessage(content);
       setMessages((prev) => [
         ...prev,
         { id: generateId(), role: 'assistant', content: reply, timestamp: new Date() },
@@ -171,7 +171,7 @@ export default function ChatWidget() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, messages]);
+  }, [input, loading]);
 
   // ── Enter para enviar (Shift+Enter = salto de línea) ──
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -304,6 +304,7 @@ export default function ChatWidget() {
               onKeyDown={handleKeyDown}
               placeholder="Escribe tu consulta... (Enter para enviar)"
               disabled={loading}
+              maxLength={500}
               aria-label="Escribe tu consulta al asistente"
               id="chat-input-field"
             />

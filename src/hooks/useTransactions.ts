@@ -44,6 +44,7 @@ export function useTransactions() {
   }, [user, logout]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchTransactions is a stable callback ref; void-ing it in an effect is the established pattern across this codebase
     void fetchTransactions();
   }, [fetchTransactions]);
 

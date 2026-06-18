@@ -32,7 +32,6 @@ async function postAuthEndpoint(path: string, body: unknown, errorFallback: stri
     raw = await parseApiResponse(response);
   } catch (err) {
     if (err instanceof ApiError) throw err;
-    // Preserve the original cause so the error chain is traceable
     throw new Error(errorFallback, { cause: err });
   }
 
@@ -65,64 +64,32 @@ export async function logoutUser(): Promise<void> {
 }
 
 /**
- * Decodes the payload section of a Google Identity Services JWT.
- * Returns a typed record of the standard OIDC claims we use, or null if
- * the token is malformed or cannot be decoded.
+ * Autentica al usuario con Google Identity Services.
+ *
+ * El frontend recibe un `credential` (ID token JWT firmado por Google) del SDK de GSI
+ * y lo reenvía tal cual al backend para verificación criptográfica.
+ *
+ * ⚠️  El frontend NUNCA decodifica ni interpreta el token de Google.
+ *     Derivar una contraseña a partir del `sub` del payload sería un vector de
+ *     suplantación de identidad — cualquiera que conozca el `sub` de un usuario
+ *     podría calcular la misma "contraseña" sin pasar por Google.
+ *
+ * El backend:
+ *  1. Verifica el token con la clave pública de Google.
+ *  2. Crea la cuenta si es la primera vez, la vincula si ya existía con ese email,
+ *     o la loguea si ya usó Google antes.
+ *  3. Setea la cookie de sesión igual que /login.
+ *
+ * Respuestas posibles:
+ *  - 200 { user } → cuenta existente (logueada o vinculada)
+ *  - 201 { user } → cuenta nueva creada automáticamente
+ *  Ambas tienen la misma forma: { id, email, first_name, last_name }
+ *
+ * Errores:
+ *  - 400 VALIDATION_ERROR        → falta el credential en el body
+ *  - 401 INVALID_GOOGLE_TOKEN    → token expirado, manipulado o client_id incorrecto
+ *  - 403 GOOGLE_EMAIL_NOT_VERIFIED → email de Google sin verificar (caso raro, Workspace)
  */
-export function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  try {
-    const payload = token.split('.')[1];
-    if (!payload) return null;
-    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-    const decoded = JSON.parse(
-      decodeURIComponent(
-        json.split('').map((char) => `%${(`00${char.charCodeAt(0).toString(16)}`).slice(-2)}`).join(''),
-      ),
-    ) as unknown;
-    return decoded !== null && typeof decoded === 'object'
-      ? (decoded as Record<string, unknown>)
-      : null;
-  } catch (error) {
-    console.warn('No fue posible leer el perfil de Google.', error);
-    return null;
-  }
-}
-
-/** Orchestrator that seamlessly logs in or auto-registers a user via Google credentials. */
-export async function loginOrRegisterWithGoogle(credential: string): Promise<User> {
-  const payload = decodeJwtPayload(credential);
-  if (!payload || typeof payload['email'] !== 'string') {
-    throw new Error('Token de Google inválido');
-  }
-
-  const email      = payload['email'].toLowerCase();
-  const password   = `google_oauth_${String(payload['sub'] ?? '')}`;
-  const first_name = typeof payload['given_name'] === 'string' ? payload['given_name']
-                   : typeof payload['name']       === 'string' ? payload['name']
-                   : 'Usuario';
-  const last_name  = typeof payload['family_name'] === 'string' ? payload['family_name'] : '';
-
-  try {
-    // 1. Try to log in with the derived credentials
-    return await loginUser({ email, password });
-  } catch (loginError: unknown) {
-    // 2. If the account does not exist (401/404) or the message matches common
-    //    "not found / invalid" patterns, auto-register and then log in.
-    const isAuthError    = loginError instanceof ApiError && (loginError.status === 401 || loginError.status === 404);
-    const isMessageError = loginError instanceof Error &&
-      (loginError.message.includes('inválidas') || loginError.message.includes('encontrado'));
-
-    if (isAuthError || isMessageError) {
-      try {
-        await registerUser({ email, password, first_name, last_name });
-        // 3. Log in after successful registration to establish the session cookie
-        return await loginUser({ email, password });
-      } catch (regError: unknown) {
-        const msg = regError instanceof Error ? regError.message : 'Error en el registro automático con Google';
-        throw new Error(msg, { cause: regError });
-      }
-    }
-
-    throw loginError;
-  }
+export function loginWithGoogle(credential: string): Promise<User> {
+  return postAuthEndpoint('/auth/google', { credential }, 'Error al iniciar sesión con Google');
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { loginUser, registerUser, loginOrRegisterWithGoogle } from '../../api-calls/auth/auth.post';
+import { loginUser, registerUser, loginWithGoogle } from '../../api-calls/auth/auth.post';
 import FloatingSymbols from '../../components/ui/FloatingSymbols';
 import './Landing.css';
 
@@ -56,7 +56,7 @@ export default function Landing() {
           setFormStatus('loading');
           setAlert(null);
           try {
-            const loggedUser = await loginOrRegisterWithGoogle(response.credential);
+            const loggedUser = await loginWithGoogle(response.credential);
             login(loggedUser);
             navigate('/dashboard', { replace: true });
           } catch (err: unknown) {

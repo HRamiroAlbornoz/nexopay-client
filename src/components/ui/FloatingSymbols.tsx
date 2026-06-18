@@ -23,9 +23,31 @@ interface SymbolItem {
 export default function FloatingSymbols() {
   const [items, setItems] = useState<SymbolItem[]>([]);
 
+  // Defined before the effect that uses it to avoid hoisting issues
+  function createSymbol(id: number): SymbolItem {
+    const symbol = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)] || '$';
+    const color = NEON_COLORS[Math.floor(Math.random() * NEON_COLORS.length)] || '#00f0ff';
+    const left = Math.random() * 100;
+    const size = 12 + Math.random() * 20;
+    const duration = 12 + Math.random() * 14;
+    const delay = Math.random() * -20;
+
+    return {
+      id,
+      symbol,
+      color,
+      left,
+      size,
+      duration,
+      delay,
+      startTime: Date.now() + delay * 1000,
+    };
+  }
+
   useEffect(() => {
     // Generate 16 floating symbols with random parameters
     const initialItems = Array.from({ length: 16 }).map((_, idx) => createSymbol(idx));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot initialization on mount; no cascading renders
     setItems(initialItems);
 
     // Recycle symbols periodically to keep them infinite
@@ -43,26 +65,6 @@ export default function FloatingSymbols() {
 
     return () => clearInterval(interval);
   }, []);
-
-  function createSymbol(id: number): SymbolItem {
-    const symbol = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)] || '$';
-    const color = NEON_COLORS[Math.floor(Math.random() * NEON_COLORS.length)] || '#00f0ff';
-    const left = Math.random() * 100; // horizontal start position %
-    const size = 12 + Math.random() * 20; // font size 12px to 32px
-    const duration = 12 + Math.random() * 14; // speed: 12s to 26s
-    const delay = Math.random() * -20; // negative delay so they spawn already scattered
-
-    return {
-      id,
-      symbol,
-      color,
-      left,
-      size,
-      duration,
-      delay,
-      startTime: Date.now() + delay * 1000,
-    };
-  }
 
   return (
     <div className="floating-symbols-container">

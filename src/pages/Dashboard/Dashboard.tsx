@@ -82,7 +82,7 @@ export default function Dashboard() {
       amount_from: depSymbol === 'ARS' ? amount : amount * 900,
       amount_to: amount,
       exchange_rate: depSymbol === 'ARS' ? 1.0 : depSymbol === 'EUR' ? 1.0854 : 1.0,
-    } as any);
+    });
     setDepAmount('');
     setAlert({ message: `¡Ingreso de ${amount} ${depSymbol} registrado con éxito! (Simulado)`, type: 'success' });
   };
