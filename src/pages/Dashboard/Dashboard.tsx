@@ -23,6 +23,8 @@ export default function Dashboard() {
   const [isBuying, setIsBuying] = useState(false);
   const [alert, setAlert] = useState<ToastAlert | null>(null);
   const [balanceHistory, setBalanceHistory] = useState<BalanceDataPoint[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [documentStatus, setDocumentStatus] = useState('Pendiente');
 
   useEffect(() => {
     getBalanceHistory(7)
@@ -49,6 +51,43 @@ export default function Dashboard() {
     return { list: list.sort((a, b) => b.valueUSD - a.valueUSD), totalUSD: total };
   }, [balances, rates]);
 
+  const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setAlert(null);
+    setIsUploading(true);
+    setDocumentStatus('Obteniendo URL segura...');
+    
+    try {
+      // 1. Get presigned URL
+      const response = await fetch(`/api/get-presigned-url?filename=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}`);
+      if (!response.ok) throw new Error('Fallo al obtener la URL segura de subida');
+      
+      const { url } = await response.json();
+      
+      // 2. Upload file directly to S3
+      setDocumentStatus('Subiendo a S3...');
+      const uploadRes = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type,
+        },
+        body: file,
+      });
+
+      if (!uploadRes.ok) throw new Error('Fallo al subir el documento a S3');
+
+      setDocumentStatus('Verificado (S3)');
+      setAlert({ message: '¡Documento subido exitosamente a AWS S3!', type: 'success' });
+    } catch (error) {
+      console.error(error);
+      setDocumentStatus('Error en subida');
+      setAlert({ message: 'Error al subir el documento.', type: 'error' });
+    } finally {
+      setIsUploading(false);
+      event.target.value = ''; // clear input
+    }
+  };
 
 
   const handleDepositSubmit = async (event: FormEvent) => {
@@ -228,7 +267,18 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* El panel de verificación de S3 fue removido por ser solo para administrador */}
+        {/* Verification */}
+        <div className="dashboard-sub-panel">
+          <div className="dashboard-section-title">Documento de Verificación</div>
+          <p className="small">Sube tu identificación o comprobante de fondos para habilitar límites superiores.</p>
+          <div className="stat-value status-value" style={{ margin: '10px 0', fontSize: '14px', color: documentStatus.includes('Verificado') ? '#00e676' : '#ffb700' }}>
+            Estado: {documentStatus}
+          </div>
+          <label className="upload-box" style={{ marginTop: '16px' }}>
+            <input type="file" accept="image/*,application/pdf" onChange={handleDocumentUpload} disabled={isUploading} />
+            <span>{isUploading ? 'Procesando...' : 'Seleccionar documento'}</span>
+          </label>
+        </div>
       </div>
     </div>
   );
