@@ -62,22 +62,12 @@ export async function createExchangeTransaction(payload: {
  * POST /api/transactions/transfer
  * Transferencia a otro usuario por correo electrónico.
  * Body: { recipient_email, currency_code, amount }
- * Respuesta: { transaction } — se valida completa con Zod.
+ * Respuesta: { transaction } — validada por el helper postTransaction.
  */
-export async function createTransfer(payload: {
+export function createTransfer(payload: {
   recipient_email: string;
   currency_code:   CurrencyCode;
   amount:          number;
 }) {
-  const res = await fetch(`${API_BASE_URL}/transactions/transfer`, {
-    method:      'POST',
-    credentials: 'include',
-    headers:     { 'Content-Type': 'application/json' },
-    body:        JSON.stringify(payload),
-  });
-
-  const raw = await parseApiResponse(res);
-  // El backend devuelve { transaction: {...} }
-  const wrapper = z.object({ transaction: transactionResponseSchema }).parse(raw);
-  return wrapper.transaction;
+  return postTransaction('transfer', payload as Record<string, unknown>);
 }

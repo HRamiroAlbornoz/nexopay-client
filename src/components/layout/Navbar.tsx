@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { logoutUser } from '../../api-calls/auth/auth.post';
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [logoutError, setLogoutError] = useState('');
 
@@ -34,6 +34,15 @@ export default function Navbar() {
       <div className="nav-actions">
         {user ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {isAdmin && (
+              <button 
+                className="btn btn-outline" 
+                onClick={() => navigate('/admin')} 
+                style={{ padding: '6px 12px', fontSize: '12px', borderColor: '#39ff14', color: '#39ff14' }}
+              >
+                Panel Admin
+              </button>
+            )}
             <div className="avatar" style={{ width: 32, height: 32, fontSize: '12px' }}>
               {getInitials()}
             </div>

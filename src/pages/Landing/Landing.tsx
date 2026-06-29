@@ -27,30 +27,36 @@ export default function Landing() {
     }
   }, [status, user, navigate]);
 
+  const googleInitialized = useRef(false);
+
   /* Inicializa Google Identity (solo renderiza el botón nativo en el ref) */
   useEffect(() => {
     if (!googleReady || !googleClientId || !window.google?.accounts?.id) return;
+    
     try {
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: async (response) => {
-          setFormStatus('loading');
-          setAlert(null);
-          try {
-            const loggedUser = await loginOrRegisterWithGoogle(response.credential);
-            login(loggedUser);
-            navigate('/dashboard', { replace: true });
-          } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : 'Error al iniciar sesión con Google';
-            setAlert({ message: msg, type: 'error' });
-          } finally {
-            setFormStatus('idle');
-          }
-        },
-        auto_select: false,
-        cancel_on_tap_outside: true,
-        use_fedcm: true,
-      });
+      if (!googleInitialized.current) {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: async (response) => {
+            setFormStatus('loading');
+            setAlert(null);
+            try {
+              const loggedUser = await loginOrRegisterWithGoogle(response.credential);
+              login(loggedUser);
+              navigate('/dashboard', { replace: true });
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : 'Error al iniciar sesión con Google';
+              setAlert({ message: msg, type: 'error' });
+            } finally {
+              setFormStatus('idle');
+            }
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          use_fedcm: true,
+        });
+        googleInitialized.current = true;
+      }
 
       /* Renderiza el botón oficial de Google en el contenedor ref */
       if (googleButtonRef.current) {
@@ -95,6 +101,7 @@ export default function Landing() {
         email: 'richard@nexopay.com',
         first_name: 'Richard',
         last_name: 'González',
+        role: 'user' as const,
       };
       login(mockUser);
       setAlert({ message: 'Modo demo activado (local/offline). Redirigiendo...', type: 'info' });

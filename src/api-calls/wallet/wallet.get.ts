@@ -54,8 +54,8 @@ export async function getWallet(): Promise<WalletInfo> {
  * GET /api/wallet/balances
  * Devuelve los balances por moneda: [{ currency_code, amount }] × 3 (ARS, USD, EUR).
  */
-export async function getWalletBalances(): Promise<WalletBalance[]> {
-  const res = await fetch(`${API_BASE_URL}/wallet/balances`, { credentials: 'include' });
+export async function getWalletBalances(signal?: AbortSignal): Promise<WalletBalance[]> {
+  const res = await fetch(`${API_BASE_URL}/wallet/balances`, { credentials: 'include', signal });
   const raw = await parseApiResponse(res);
   return walletBalancesSchema.parse(raw);
 }

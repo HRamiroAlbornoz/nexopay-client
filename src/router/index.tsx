@@ -1,6 +1,8 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { Landing, Login, Register, Dashboard, Wallet, Transactions, SharedExpenses, SavingsGoals } from '../pages';
 import { PrivateRoute, AppLayout } from '../components';
+import { AdminRoute } from '../components/auth/AdminRoute';
+import { AdminDashboard } from '../pages/Admin/AdminDashboard';
 
 const router = createBrowserRouter([
   { path: '/', element: <Landing /> },
@@ -19,6 +21,12 @@ const router = createBrowserRouter([
           { path: '/savings-goals', element: <SavingsGoals /> },
         ],
       },
+    ],
+  },
+  {
+    element: <AdminRoute />,
+    children: [
+      { path: '/admin', element: <AdminDashboard /> },
     ],
   },
 ]);

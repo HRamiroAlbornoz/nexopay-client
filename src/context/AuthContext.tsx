@@ -10,6 +10,7 @@ export const userSchema = z.object({
   email: z.email(),
   first_name: z.string(),
   last_name: z.string(),
+  role: z.enum(['user', 'admin']).optional().default('user'),
 });
 
 export type User = z.infer<typeof userSchema>;
@@ -23,6 +24,7 @@ export interface AuthContextValue {
   logout: () => void;
   googleReady: boolean;
   googleClientId: string | undefined;
+  isAdmin: boolean;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- Context and Provider are intentionally co-located; Vite HMR limitation
@@ -119,8 +121,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // RBAC: derivado exclusivamente del campo `role` proveniente del backend.
+  // No se usa email ni heurísticas locales — evita bypasses de seguridad.
+  const isAdmin = user?.role === 'admin';
+
   return (
-    <AuthContext.Provider value={{ user, status, login, logout, googleReady, googleClientId }}>
+    <AuthContext.Provider value={{ user, status, login, logout, googleReady, googleClientId, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

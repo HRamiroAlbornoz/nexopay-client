@@ -35,6 +35,9 @@ export function toRateList(data: RatesResponse): CurrencyRate[] {
   ];
 }
 
+/** Intervalo de refresco automático (debe coincidir con el TTL de la caché). */
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
+
 export function useExchangeRate() {
   const [rates, setRates] = useState<CurrencyRate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,9 +58,19 @@ export function useExchangeRate() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchRates es un callback estable; patrón establecido en useTransactions/useWallet
+    // Carga inicial
     void fetchRates();
+
+    // Auto-refresh cada 5 minutos — muestra datos actualizados en el panel
+    // "Mercados en vivo" sin que el usuario recargue la página.
+    const intervalId = setInterval(() => {
+      void fetchRates();
+    }, REFRESH_INTERVAL_MS);
+
+    // Cleanup: cancela el intervalo cuando el componente se desmonta
+    return () => clearInterval(intervalId);
   }, [fetchRates]);
 
   return { rates, loading, error, refetch: fetchRates };
 }
+

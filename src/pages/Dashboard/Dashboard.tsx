@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useWallet } from '../../hooks/useWallet';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useExchangeRate } from '../../hooks/useExchangeRate';
+import { createCheckoutSession } from '../../api-calls/payments/payments.post';
 import { createBuyTransaction } from '../../api-calls/transactions/transactions.post';
 import { getBalanceHistory } from '../../api-calls/wallet/wallet.get';
 import { ApiError } from '../../lib/apiError';
@@ -21,8 +22,12 @@ export default function Dashboard() {
   const [depAmount, setDepAmount] = useState('');
   const [depSymbol, setDepSymbol] = useState<'USD' | 'EUR'>('USD');
   const [isBuying, setIsBuying] = useState(false);
+  const [checkoutAmount, setCheckoutAmount] = useState('');
+  const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
   const [alert, setAlert] = useState<ToastAlert | null>(null);
   const [balanceHistory, setBalanceHistory] = useState<BalanceDataPoint[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [documentStatus, setDocumentStatus] = useState('Pendiente');
 
   useEffect(() => {
     getBalanceHistory(7)
@@ -49,6 +54,72 @@ export default function Dashboard() {
     return { list: list.sort((a, b) => b.valueUSD - a.valueUSD), totalUSD: total };
   }, [balances, rates]);
 
+  const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setAlert(null);
+    setIsUploading(true);
+    setDocumentStatus('Obteniendo URL segura...');
+    
+    try {
+      // 1. Get presigned URL
+      const response = await fetch(`/api/get-presigned-url?filename=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}`);
+      if (!response.ok) throw new Error('Fallo al obtener la URL segura de subida');
+      
+      const { url } = await response.json();
+      
+      // 2. Upload file directly to S3
+      setDocumentStatus('Subiendo a S3...');
+      const uploadRes = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type,
+        },
+        body: file,
+      });
+
+      if (!uploadRes.ok) throw new Error('Fallo al subir el documento a S3');
+
+      setDocumentStatus('Verificado (S3)');
+      setAlert({ message: '¡Documento subido exitosamente a AWS S3!', type: 'success' });
+    } catch (error) {
+      console.error(error);
+      setDocumentStatus('Error en subida');
+      setAlert({ message: 'Error al subir el documento.', type: 'error' });
+    } finally {
+      setIsUploading(false);
+      event.target.value = ''; // clear input
+    }
+  };
+
+  const handleCheckoutSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setAlert(null);
+
+    const amount = Number(checkoutAmount);
+    if (!checkoutAmount || amount <= 0) {
+      setAlert({ message: 'Ingresa un monto válido para recargar.', type: 'warning' });
+      return;
+    }
+
+    setIsCreatingCheckout(true);
+    try {
+      const checkout = await createCheckoutSession({ amount, currency: 'ars' });
+      window.location.href = checkout.url;
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.isUnauthorized()) {
+          logout();
+          return;
+        }
+        setAlert({ message: err.message, type: 'error' });
+      } else {
+        setAlert({ message: 'No se pudo iniciar el pago con Stripe.', type: 'error' });
+      }
+    } finally {
+      setIsCreatingCheckout(false);
+    }
+  };
 
 
   const handleDepositSubmit = async (event: FormEvent) => {
@@ -118,6 +189,25 @@ export default function Dashboard() {
             ${assetDetails.totalUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="small">Equivalente USD (ARS/USD/EUR)</div>
+        </div>
+        <div className="dashboard-stat-card">
+          <div className="stat-label">Recarga de saldo</div>
+          <form className="checkout-form" onSubmit={handleCheckoutSubmit}>
+            <input
+              type="number"
+              placeholder="Monto ARS"
+              value={checkoutAmount}
+              onChange={(e) => setCheckoutAmount(e.target.value)}
+              className="neon-input checkout-input"
+              min="0"
+              step="any"
+              required
+            />
+            <button type="submit" disabled={isCreatingCheckout} className="btn btn-primary checkout-button">
+              {isCreatingCheckout ? 'Redirigiendo...' : 'Pagar con Stripe'}
+            </button>
+          </form>
+          <div className="small">Se abrirá el checkout seguro de Stripe.</div>
         </div>
       </div>
 
@@ -228,7 +318,18 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* El panel de verificación de S3 fue removido por ser solo para administrador */}
+        {/* Verification */}
+        <div className="dashboard-sub-panel">
+          <div className="dashboard-section-title">Documento de Verificación</div>
+          <p className="small">Sube tu identificación o comprobante de fondos para habilitar límites superiores.</p>
+          <div className="stat-value status-value" style={{ margin: '10px 0', fontSize: '14px', color: documentStatus.includes('Verificado') ? '#00e676' : '#ffb700' }}>
+            Estado: {documentStatus}
+          </div>
+          <label className="upload-box" style={{ marginTop: '16px' }}>
+            <input type="file" accept="image/*,application/pdf" onChange={handleDocumentUpload} disabled={isUploading} />
+            <span>{isUploading ? 'Procesando...' : 'Seleccionar documento'}</span>
+          </label>
+        </div>
       </div>
     </div>
   );

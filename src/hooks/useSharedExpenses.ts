@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { getSharedExpenses } from '../api-calls/shared-expenses/shared-expenses.get';
 import { createSharedExpense, settleSharedExpense } from '../api-calls/shared-expenses/shared-expenses.post';
-import { ApiError } from '../lib/apiError';
+import { handleApiError, getApiErrorMessage } from '../lib/handleApiError';
 import type { SharedExpense, SharedExpenseMember } from '../types/shared-expense.types';
 import type { Transaction } from '../types/transaction.types';
 import type { CurrencyCode } from '../types/currency.types';
@@ -15,7 +15,7 @@ export function useSharedExpenses() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchExpenses = useCallback(async () => {
+  const fetchExpenses = useCallback(async (signal?: AbortSignal) => {
     if (!user) {
       setExpenses([]);
       setLoading(false);
@@ -24,26 +24,20 @@ export function useSharedExpenses() {
     setLoading(true);
     setError('');
     try {
-      const data = await getSharedExpenses();
+      const data = await getSharedExpenses(signal);
       setExpenses(data);
     } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.isUnauthorized()) {
-          logout();
-          return;
-        }
-        setError(err.message);
-      } else {
-        setError('No se pudieron cargar los gastos compartidos.');
-      }
+      if (err instanceof Error && err.name === 'AbortError') return;
+      handleApiError(err, setError, 'No se pudieron cargar los gastos compartidos.', logout);
     } finally {
       setLoading(false);
     }
   }, [user, logout]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchExpenses es un callback estable; patrón establecido en useTransactions/useWallet
-    void fetchExpenses();
+    const controller = new AbortController();
+    void fetchExpenses(controller.signal);
+    return () => controller.abort();
   }, [fetchExpenses]);
 
   const addExpense = useCallback(async (payload: {
@@ -57,13 +51,7 @@ export function useSharedExpenses() {
       setExpenses((prev) => [expense, ...prev]);
       return { ok: true, expense };
     } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.isUnauthorized()) {
-          logout();
-        }
-        return { ok: false, message: err.message };
-      }
-      return { ok: false, message: 'No se pudo crear el gasto compartido.' };
+      return { ok: false, message: getApiErrorMessage(err, 'No se pudo crear el gasto compartido.', logout) };
     }
   }, [logout]);
 
@@ -75,13 +63,7 @@ export function useSharedExpenses() {
       setExpenses((prev) => prev.map((e) => (e.id === id ? expense : e)));
       return { ok: true, transaction };
     } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.isUnauthorized()) {
-          logout();
-        }
-        return { ok: false, message: err.message };
-      }
-      return { ok: false, message: 'No se pudo liquidar el gasto compartido.' };
+      return { ok: false, message: getApiErrorMessage(err, 'No se pudo liquidar el gasto compartido.', logout) };
     }
   }, [logout]);
 
