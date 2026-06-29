@@ -15,16 +15,37 @@ const ratesResponseSchema = z.object({
 
 export type RatesResponse = z.infer<typeof ratesResponseSchema>;
 
+// ─── Caché en memoria de módulo ───────────────────────────────────────────────
+// Evita llamadas repetidas al API cada vez que RightPanel o useExchangeRate
+// se montan. La caché vive durante la sesión de navegación (hasta F5/recarga).
+
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+let ratesCache: { data: RatesResponse; expiresAt: number } | null = null;
+
+/** Invalida la caché manualmente (útil en tests o forzar refresco). */
+export function invalidateRatesCache(): void {
+  ratesCache = null;
+}
+
 // ─── API call ────────────────────────────────────────────────────────────────
 
 /**
  * GET /api/rates
- * Devuelve las tasas de cambio actuales.
- * Respuesta: { base: "EUR", rates: { ARS, USD, EUR } }
+ * Devuelve las tasas de cambio actuales con caché de 5 minutos.
  * Ruta pública — no requiere cookie de sesión.
  */
 export async function getRates(): Promise<RatesResponse> {
-  const res = await fetch(`${API_BASE_URL}/rates`, { credentials: 'include' });
+  // Devolver desde caché si aún es válida
+  if (ratesCache && Date.now() < ratesCache.expiresAt) {
+    return ratesCache.data;
+  }
+
+  // Sin credentials: ruta pública, no necesita cookie de sesión
+  const res = await fetch(`${API_BASE_URL}/rates`);
   const raw = await parseApiResponse(res);
-  return ratesResponseSchema.parse(raw);
+  const data = ratesResponseSchema.parse(raw);
+
+  ratesCache = { data, expiresAt: Date.now() + CACHE_TTL_MS };
+  return data;
 }

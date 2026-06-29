@@ -121,8 +121,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Helper temporal para demo: si el email contiene "admin" o el rol es admin
-  const isAdmin = user?.role === 'admin' || user?.email.includes('admin') || user?.email === 'nexo.paybussiness@gmail.com';
+  // RBAC: derivado exclusivamente del campo `role` proveniente del backend.
+  // No se usa email ni heurísticas locales — evita bypasses de seguridad.
+  const isAdmin = user?.role === 'admin';
 
   return (
     <AuthContext.Provider value={{ user, status, login, logout, googleReady, googleClientId, isAdmin }}>

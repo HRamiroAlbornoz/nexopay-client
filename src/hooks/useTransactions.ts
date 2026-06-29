@@ -52,7 +52,7 @@ export function useTransactions() {
   const addTransactionOptimistic = useCallback((tx: CreateTransactionPayload) => {
     const newTx: Transaction = {
       ...tx,
-      id: Math.random().toString(36).substring(7),
+      id: `optimistic-${crypto.randomUUID()}`,
       created_at: new Date().toISOString(),
       desc: tx.type === 'buy'      ? `Compra de ${tx.currency_to} con saldo ${tx.currency_from}` :
             tx.type === 'sell'     ? `Venta de ${tx.currency_from} a saldo ${tx.currency_to}` :
