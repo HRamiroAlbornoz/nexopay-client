@@ -12,8 +12,8 @@ const savingsGoalsResponseSchema = z.object({
  * GET /api/savings-goals
  * Respuesta: { goals: SavingsGoal[] }
  */
-export async function getSavingsGoals() {
-  const res = await fetch(`${API_BASE_URL}/savings-goals`, { credentials: 'include' });
+export async function getSavingsGoals(signal?: AbortSignal) {
+  const res = await fetch(`${API_BASE_URL}/savings-goals`, { credentials: 'include', signal });
   const raw = await parseApiResponse(res);
   const { goals } = savingsGoalsResponseSchema.parse(raw);
   return goals;

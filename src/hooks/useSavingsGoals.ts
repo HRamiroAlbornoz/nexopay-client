@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { getSavingsGoals } from '../api-calls/savings-goals/savings-goals.get';
 import { createSavingsGoal, fundSavingsGoal } from '../api-calls/savings-goals/savings-goals.post';
-import { ApiError } from '../lib/apiError';
+import { handleApiError, getApiErrorMessage } from '../lib/handleApiError';
 import type { SavingsGoal } from '../types/savings-goal.types';
 import type { Transaction } from '../types/transaction.types';
 import type { CurrencyCode } from '../types/currency.types';
@@ -15,7 +15,7 @@ export function useSavingsGoals() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchGoals = useCallback(async () => {
+  const fetchGoals = useCallback(async (signal?: AbortSignal) => {
     if (!user) {
       setGoals([]);
       setLoading(false);
@@ -24,26 +24,20 @@ export function useSavingsGoals() {
     setLoading(true);
     setError('');
     try {
-      const data = await getSavingsGoals();
+      const data = await getSavingsGoals(signal);
       setGoals(data);
     } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.isUnauthorized()) {
-          logout();
-          return;
-        }
-        setError(err.message);
-      } else {
-        setError('No se pudieron cargar las metas de ahorro.');
-      }
+      if (err instanceof Error && err.name === 'AbortError') return;
+      handleApiError(err, setError, 'No se pudieron cargar las metas de ahorro.', logout);
     } finally {
       setLoading(false);
     }
   }, [user, logout]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchGoals es un callback estable; patrón establecido en useTransactions/useWallet
-    void fetchGoals();
+    const controller = new AbortController();
+    void fetchGoals(controller.signal);
+    return () => controller.abort();
   }, [fetchGoals]);
 
   const addGoal = useCallback(async (payload: {
@@ -57,13 +51,7 @@ export function useSavingsGoals() {
       setGoals((prev) => [goal, ...prev]);
       return { ok: true, goal };
     } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.isUnauthorized()) {
-          logout();
-        }
-        return { ok: false, message: err.message };
-      }
-      return { ok: false, message: 'No se pudo crear el objetivo.' };
+      return { ok: false, message: getApiErrorMessage(err, 'No se pudo crear el objetivo.', logout) };
     }
   }, [logout]);
 
@@ -76,13 +64,7 @@ export function useSavingsGoals() {
       setGoals((prev) => prev.map((g) => (g.id === id ? goal : g)));
       return { ok: true, transaction };
     } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.isUnauthorized()) {
-          logout();
-        }
-        return { ok: false, message: err.message };
-      }
-      return { ok: false, message: 'No se pudo aportar a la meta de ahorro.' };
+      return { ok: false, message: getApiErrorMessage(err, 'No se pudo aportar a la meta de ahorro.', logout) };
     }
   }, [logout]);
 

@@ -1,7 +1,7 @@
 import { createContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getWalletBalances } from '../api-calls/wallet/wallet.get';
-import { ApiError } from '../lib/apiError';
+import { handleApiError } from '../lib/handleApiError';
 import type { WalletBalance } from '../api-calls/wallet/wallet.get';
 import type { CurrencyCode } from '../types/currency.types';
 
@@ -27,7 +27,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState('');
 
-  const fetchBalances = useCallback(async () => {
+  const fetchBalances = useCallback(async (signal?: AbortSignal) => {
     if (!user) {
       setBalances([]);
       setLoading(false);
@@ -38,27 +38,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setError('');
 
     try {
-      const data = await getWalletBalances();
+      const data = await getWalletBalances(signal);
       setBalances(data);
     } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.isUnauthorized()) {
-          // Sesión vencida — limpia estado y redirige a login
-          logout();
-          return;
-        }
-        setError(err.message);
-      } else {
-        setError('No se pudo cargar la billetera.');
-      }
+      if (err instanceof Error && err.name === 'AbortError') return;
+      // Sesión vencida — limpia estado y redirige a login
+      handleApiError(err, setError, 'No se pudo cargar la billetera.', logout);
     } finally {
       setLoading(false);
     }
   }, [user, logout]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- setState is called asynchronously inside fetchBalances (after await), not synchronously in the effect
-    void fetchBalances();
+    const controller = new AbortController();
+    void fetchBalances(controller.signal);
+    return () => controller.abort();
   }, [fetchBalances]);
 
   const updateBalance = useCallback((currency: CurrencyCode, delta: number) => {

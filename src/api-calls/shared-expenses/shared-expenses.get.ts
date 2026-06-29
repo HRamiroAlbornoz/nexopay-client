@@ -14,9 +14,9 @@ const sharedExpensesResponseSchema = z.object({
  * GET /api/shared-expenses?page=&limit=
  * Respuesta: { expenses: SharedExpense[], page, limit }
  */
-export async function getSharedExpenses(page = 1, limit = 20) {
+export async function getSharedExpenses(signal?: AbortSignal, page = 1, limit = 20) {
   const url = `${API_BASE_URL}/shared-expenses?page=${page}&limit=${limit}`;
-  const res = await fetch(url, { credentials: 'include' });
+  const res = await fetch(url, { credentials: 'include', signal });
   const raw = await parseApiResponse(res);
   const { expenses } = sharedExpensesResponseSchema.parse(raw);
   return expenses;
